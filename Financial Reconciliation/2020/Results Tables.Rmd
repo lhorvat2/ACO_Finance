@@ -1,0 +1,35 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(openxlsx)
+library(readxl)
+```
+
+
+
+```{r Read in data}
+
+Finperf = read_excel("Z:\\pgm output\\ACOV2-6151 (PY 2020 Fin Rec Management Report)\\PRELIM 3 - PY20 Financial Reconciliation Management Report 20210702.xlsx", sheet = "PY 2020 Fin Perf Table", skip = 1) %>% filter(!is.na(`ACO ID`))
+
+```
+
+```{r Table }
+Finperf %>% group_by(`PY 2020 Performance Category`) %>% count()%>% arrange( desc(`PY 2020 Performance Category`)) %>% write_csv("Z:\\finance\\financial reconciliation\\2020\\Results Tables\\Analysts\\Luke\\Total_4.1.csv")
+
+
+Finperf %>% filter(`PY 2020 Risk Model` == "One-Sided") %>%   group_by(`PY 2020 Performance Category`) %>% count() %>% arrange( desc(`PY 2020 Performance Category`))%>% write_csv("Z:\\finance\\financial reconciliation\\2020\\Results Tables\\Analysts\\Luke\\One_sided_risk_4.1.csv")
+
+Finperf %>% filter(`PY 2020 Risk Model` == "Two-Sided") %>%   group_by(`PY 2020 Performance Category`) %>% count() %>% arrange( desc(`PY 2020 Performance Category`))%>% write_csv("Z:\\finance\\financial reconciliation\\2020\\Results Tables\\Analysts\\Luke\\Two_sided_risk_4.1.csv")
+
+
+Finperf  %>%   group_by(`PY 2020 Performance Category`, `PY 2020 Track`) %>% count() %>% arrange(`PY 2020 Track`, desc(`PY 2020 Performance Category`)) %>% write_csv("Z:\\finance\\financial reconciliation\\2020\\Results Tables\\Analysts\\Luke\\Rest_4.1.csv")
+
+
+
+```
+

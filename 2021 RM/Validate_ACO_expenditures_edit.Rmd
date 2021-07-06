@@ -1,0 +1,199 @@
+---
+title: "Validate ACO Level expenditures"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(readr)
+library(readxl)
+library(tidyr)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+ACO_expends = read_csv("Z:\\pgm\\ibugarinovic\\programs\\MSSP\\G4 batch\\Repayment Mechanism\\B5A19G4R.ACO19.CSV")
+
+ACO_Expends_sum = ACO_expends %>%
+  #ai
+  replace_na(list(ESRD_EXP_PER_BENE = 0, DIS_EXP_PER_BENE = 0, AGDU_EXP_PER_BENE = 0, AGND_EXP_PER_BENE = 0)) %>%
+  #a,b.
+  mutate(TOT_EXP = (ESRD_EXP_PER_BENE * ESRD_PY) + (DIS_EXP_PER_BENE * DIS_PY) + (AGDU_EXP_PER_BENE * AGDU_PY) + (AGND_EXP_PER_BENE * AGND_PY)) %>% 
+  select(ACO_ID = ACOID, TOT_EXP)
+
+
+qaTinExpends <- as_tibble(read_csv("Z:\\pgm output\\ACO-3427 (2021 TIN First TIN Level Expenditures)\\TI00.MSSP.GX9V.SASRNR51.TINEXP.csv")) %>%
+  mutate_all(as.character) %>%
+  mutate(TIN = str_pad(TIN, 9, side = c("left"), pad = "0")) %>%
+  #i know this sucks. r is stupid
+  mutate(ESRD_EXP_PER_BENE = as.numeric(ESRD_EXP_PER_BENE),
+         ESRD_PY = as.numeric(ESRD_PY),
+         DIS_EXP_PER_BENE = as.numeric(DIS_EXP_PER_BENE),
+         DIS_PY = as.numeric(DIS_PY),
+         AGND_EXP_PER_BENE = as.numeric(AGND_EXP_PER_BENE),
+         AGND_PY = as.numeric(AGND_PY),
+         AGDU_EXP_PER_BENE = as.numeric(AGDU_EXP_PER_BENE),
+         AGDU_PY = as.numeric(AGDU_PY),
+         TOT_AB = as.numeric(TOT_AB)) %>%
+  #ensure missings dont make average missing
+  replace_na(list(ESRD_EXP_PER_BENE = 0, DIS_EXP_PER_BENE = 0, AGDU_EXP_PER_BENE = 0, AGND_EXP_PER_BENE = 0)) %>%
+  #i.
+  mutate(TOT_EXP = (ESRD_EXP_PER_BENE * ESRD_PY) + (DIS_EXP_PER_BENE * DIS_PY) + (AGDU_EXP_PER_BENE * AGDU_PY) + (AGND_EXP_PER_BENE * AGND_PY)) %>%
+  #ii.
+  select(TIN, TOT_AB, TOT_EXP)
+
+qaCcnExpends <- as_tibble(read_csv("Z:\\pgm output\\ACO-3427 (2021 TIN First TIN Level Expenditures)\\TI00.MSSP.GX9V.SASRNR51.CCNEXP.csv")) %>%
+  mutate_all(as.character) %>%
+  mutate(CCN = str_pad(CCN, 6, side = c("left"), pad = "0")) %>%
+  mutate(ESRD_EXP_PER_BENE = as.numeric(ESRD_EXP_PER_BENE),
+         ESRD_PY = as.numeric(ESRD_PY),
+         DIS_EXP_PER_BENE = as.numeric(DIS_EXP_PER_BENE),
+         DIS_PY = as.numeric(DIS_PY),
+         AGND_EXP_PER_BENE = as.numeric(AGND_EXP_PER_BENE),
+         AGND_PY = as.numeric(AGND_PY),
+         AGDU_EXP_PER_BENE = as.numeric(AGDU_EXP_PER_BENE),
+         AGDU_PY = as.numeric(AGDU_PY),
+         TOT_AB = as.numeric(TOT_AB)) %>%
+  #replace NA in expenditure columns with 0 in order to avoid missing averages
+  replace_na(list(ESRD_EXP_PER_BENE = 0, DIS_EXP_PER_BENE = 0, AGDU_EXP_PER_BENE = 0, AGND_EXP_PER_BENE = 0)) %>%
+  # i. 
+  mutate(TOT_EXP = (ESRD_EXP_PER_BENE * ESRD_PY) + (DIS_EXP_PER_BENE * DIS_PY) + (AGDU_EXP_PER_BENE * AGDU_PY) + (AGND_EXP_PER_BENE * AGND_PY)) %>%
+  # ii. 
+  select(CCN, TOT_AB, TOT_EXP)
+
+
+
+
+qaAcoTin = as_tibble(haven::read_sas("Y:\\data\\jsciandra\\Prescreening\\2021\\G4\\batch_g4_tin_20201028.sas7bdat")) %>%
+  select(ACO = ACO_ID, TIN, PROGRAM_YEAR = Program_Year, TRACK = ACO_Track, Latest_Agreement_Start_Date = Latest_Agreement_Start_Date, Renewal_Effective_Date = Renewal_Effective_Date, ACO_START_DATE = ACO_Start_Date, INTO_RISK = Into_Risk) %>%
+  #doing this to drop all leading zeroes up front so everything merges nicely
+  mutate(TIN = as.character(TIN),
+         TIN = str_pad(TIN, 9, side = c("left"), pad = "0")) 
+
+qaAcoTin %>% group_by(TRACK) %>% count()
+
+
+#some validations
+sum(is.na(qaAcoTin$Latest_Agreement_Start_Date))
+sum(is.na(qaAcoTin$Renewal_Effective_Date))
+sum(is.na(qaAcoTin$ACO_Current_Start_Date))
+
+
+
+
+
+# Comparisons are much faster with Latest Agreement Start Date as a character
+#will have to be edited if not using SAS input from Keith
+qaAcoTin$Latest_Agreement_Start_Date = as.character(qaAcoTin$Latest_Agreement_Start_Date)
+qaAcoTin$ACO_START_DATE = as.character(qaAcoTin$ACO_START_DATE)
+
+unique(qaAcoTin$Latest_Agreement_Start_Date)
+unique(qaAcoTin$ACO_START_DATE)
+
+
+acoData <- qaAcoTin %>% distinct(ACO, .keep_all = TRUE) %>% select(-TIN)
+
+
+#ACO/TIN/CCN crosswalk
+qaAcoTinCcn <- as_tibble(haven::read_sas("Y:\\data\\jsciandra\\Prescreening\\2021\\G4\\batch_g4_ccn_20201028.sas7bdat")) %>%
+  filter(Use_Record == 1) %>%
+  select(ACO = ACO_ID, TIN, CCN) %>%
+  mutate(ACO = as.character(ACO),
+         TIN = as.character(TIN),
+         CCN = as.character(CCN),
+         TIN = str_pad(TIN, 9, side = c("left"), pad = "0"),
+         CCN = str_pad(CCN, 6, side = c("left"), pad = "0")) %>% 
+  #this is exerimental 
+  distinct(ACO, TIN, CCN)
+
+qaAcoTinCcn$CCN_digits = nchar(qaAcoTinCcn$CCN)
+qaAcoTinCcn$TIN = gsub("'","", qaAcoTinCcn$TIN)
+
+
+
+TIN_expends = left_join(qaAcoTin, qaTinExpends, by="TIN") %>% group_by(ACO) %>% summarize(TOT_EXP = sum(TOT_EXP, na.rm=TRUE))
+CCN_expends = left_join(qaAcoTinCcn, qaCcnExpends, by="CCN") %>% group_by(ACO) %>% summarize(TOT_EXP = sum(TOT_EXP, na.rm=TRUE))
+TIN_expends = bind_rows(TIN_expends, CCN_expends) %>% group_by(ACO) %>% summarize(TOT_EXP = sum(TOT_EXP, na.rm=TRUE))
+
+```
+
+
+```{r}
+compare = left_join(ACO_Expends_sum, TIN_expends, by = c("ACO_ID" = "ACO")) 
+cor(compare$TOT_EXP.x, compare$TOT_EXP.y)
+
+```
+
+
+
+```{r Parlist change F7 to E4}
+
+F7_TIN = read_excel("Z:\\participant management\\prescreening\\2020 Prescreening\\Batch F7\\Batch_F7_Parlist_20191230.xlsx", sheet = "Batch_F7_TIN_20191230", col_types = rep("text", 47)) %>% select(ACO_ID, TIN) %>% mutate(F7 = 1)
+F7_CCN = read_excel("Z:\\participant management\\prescreening\\2020 Prescreening\\Batch F7\\Batch_F7_Parlist_20191230.xlsx", sheet = "Batch_F7_CCN_20191230", col_types = rep("text", 34))%>% select(ACO_ID, CCN) %>% mutate(F7 = 1)
+
+
+G4_TIN = read_excel("Z:\\pgm output\\ACOV2-5168 (Batch G4 Claims Counts, Assignment Tables)\\Tables (Batch G4) to IDR for Assignment 20201028.xlsx", sheet = 'TIN') %>% select(ACO_ID, TIN) %>% mutate(E4 = 1)
+
+G4_CCN = read_excel("Z:\\pgm output\\ACOV2-5168 (Batch G4 Claims Counts, Assignment Tables)\\Tables (Batch G4) to IDR for Assignment 20201028.xlsx", sheet = 'CCN') %>% select(ACO_ID, CCN) %>% mutate(E4 = 1)
+
+```
+
+```{r parlist change}
+
+TIN_JOIN = full_join(F7_TIN, G4_TIN) %>% 
+  group_by(ACO_ID) %>% 
+  summarize(total_tin = n(),
+         E4_TINs = sum(E4, na.rm=TRUE),
+         F7_TINs = sum(F7, na.rm=TRUE),
+         TIN_MATCH = E4_TINs == n() & F7_TINs == n())  
+
+CCN_JOIN = full_join(F7_CCN, G4_CCN) %>% 
+  group_by(ACO_ID) %>% 
+  summarize(total_CCN = n(),
+         E4_CCNs = sum(E4, na.rm=TRUE),
+         F7_CCNs = sum(F7, na.rm=TRUE),
+         CCN_MATCH = E4_CCNs == n() & F7_CCNs == n())  
+
+
+Parlist_change = left_join(TIN_JOIN, CCN_JOIN) %>% tidyr::replace_na(list(CCN_MATCH = TRUE)) %>% 
+  mutate(Parlist_change = if_else(TIN_MATCH & CCN_MATCH,0,1)) %>% filter(Parlist_change == 0)
+  
+
+
+```
+
+```{r Compare 2019 expenditures to 2020 expenditures}
+
+F7_expends = read_csv("Z:\\pgm output\\ACO-2582 (2020 Final Historical Benchmark - Benchmark or Shared SavingsLosses Calculation)\\TI00.MSSP.GX9V.B3B79F7A.ACO789.CSV") %>% group_by(ACO_ID) %>%  summarize(
+  TOT_EXP = (Per_Capita_Exp_AGDU_19 * Person_Years_AGDU_19) + (Per_Capita_Exp_DIS_19 * Person_Years_DIS_19) + (Per_Capita_Exp_ESRD_19 * Person_Years_ESRD_19) + (Per_Capita_Exp_AGND_19 * Person_Years_AGND_19)
+)
+
+Compare_ACO_expenditures = inner_join(ACO_Expends_sum, F7_expends, by="ACO_ID") %>% filter(ACO_ID %in% Parlist_change$ACO_ID)
+cor(Compare_ACO_expenditures$TOT_EXP.x, Compare_ACO_expenditures$TOT_EXP.y)
+
+```
+
+
+```{r Compare G4 and G5 expenditures}
+
+G5_ACO_expends = read_csv("Z:\\pgm\\ibugarinovic\\programs\\MSSP\\G5 batch\\Repayment Mechanism\\B5A19G5R.ACO19.CSV")%>%
+  #ai
+  replace_na(list(ESRD_EXP_PER_BENE = 0, DIS_EXP_PER_BENE = 0, AGDU_EXP_PER_BENE = 0, AGND_EXP_PER_BENE = 0)) %>%
+  #a,b.
+  mutate(TOT_EXP = (ESRD_EXP_PER_BENE * ESRD_PY) + (DIS_EXP_PER_BENE * DIS_PY) + (AGDU_EXP_PER_BENE * AGDU_PY) + (AGND_EXP_PER_BENE * AGND_PY)) %>% 
+  select(ACO_ID = ACOID, TOT_EXP)
+
+
+G5_G4_compare = ACO_Expends_sum %>% inner_join(G5_ACO_expends, by="ACO_ID")
+cor(G5_G4_compare$TOT_EXP.x, G5_G4_compare$TOT_EXP.y)
+
+ACOS_changed = G5_G4_compare %>% filter(ACO_ID  %in% c("A4756", "A4895"))
+
+```
+

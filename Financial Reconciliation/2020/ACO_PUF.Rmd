@@ -1,0 +1,932 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(readxl)
+library(purrr)
+library(tidyr)
+
+```
+
+
+```{r Load Fin Perf Tables}
+
+PY2019_fin_perf = read_excel("Z:\\finance\\report validation\\financial reconciliation\\PY19 and 19A\\Management Reports\\PY 2019 Financial Reconciliation Management Report.xlsx", sheet = "PY 2019 Fin Perf Table", skip=1)
+
+#saveRDS(PY2019_fin_perf, "C:\\Users\\lhorvath\\Downloads\\PY2019_fin_perf.RDS")
+
+#PY2019_fin_perf = readRDS("C:\\Users\\lhorvath\\Downloads\\PY2019_fin_perf.RDS")
+
+Quality_dataset = read_excel("Z:\\quality\\scoring and reports\\2019\\DataDissemination\\PUFDataset.xlsx")
+
+
+```
+
+
+```{r Format PY 2019 Fin Perf Track Vars}
+PY2019_fin_perf$Agree_Type = ifelse(PY2019_fin_perf$`Renewal (Y/N)` == "No", "Initial", "Renewal")
+
+#I have a question about whether there can be a three here!
+PY2019_fin_perf$Agreement_Period_Num = ifelse(PY2019_fin_perf$`Renewal (Y/N)` == "No", 1, 2)
+
+PY2019_fin_perf$Initial_Track_1 = ifelse((PY2019_fin_perf$`Original Agreement Track (Renewals Only)` == "1" & PY2019_fin_perf$`Renewal (Y/N)` == "Yes") | 
+                                           (PY2019_fin_perf$`PY 2019 Track` == "1" & PY2019_fin_perf$`Renewal (Y/N)` == "No"), 1, 0)
+
+PY2019_fin_perf$Initial_Track_2 = ifelse((PY2019_fin_perf$`Original Agreement Track (Renewals Only)` == "2" & PY2019_fin_perf$`Renewal (Y/N)` == "Yes") | 
+                                           (PY2019_fin_perf$`PY 2019 Track` == "2" & PY2019_fin_perf$`Renewal (Y/N)` == "No"), 1, 0)
+
+PY2019_fin_perf$Initial_Track_3 = ifelse((PY2019_fin_perf$`Original Agreement Track (Renewals Only)` == "3" & PY2019_fin_perf$`Renewal (Y/N)` == "Yes") | 
+                                           (PY2019_fin_perf$`PY 2019 Track` == "3" & PY2019_fin_perf$`Renewal (Y/N)` == "No"), 1, 0)
+
+PY2019_fin_perf$Initial_Track_1_Plus = ifelse((PY2019_fin_perf$`Original Agreement Track (Renewals Only)` == "1+" & PY2019_fin_perf$`Renewal (Y/N)` == "Yes") | 
+                                           (PY2019_fin_perf$`PY 2019 Track` == "1+" & PY2019_fin_perf$`Renewal (Y/N)` == "No"), 1, 0)
+
+
+
+PY2019_fin_perf$Initial_BASIC_A = ifelse((PY2019_fin_perf$`Original Agreement Track (Renewals Only)` == "A" & PY2019_fin_perf$`Renewal (Y/N)` == "Yes") |
+                                             (PY2019_fin_perf$`Renewal (Y/N)` == "No" & 
+                                              PY2019_fin_perf$`PY 2019 Track` == "A"), 1, 0)
+
+
+PY2019_fin_perf$Initial_BASIC_B = ifelse((PY2019_fin_perf$`Original Agreement Track (Renewals Only)` == "B" & PY2019_fin_perf$`Renewal (Y/N)` == "Yes") |
+                                             (PY2019_fin_perf$`Renewal (Y/N)` == "No" & 
+                                              PY2019_fin_perf$`PY 2019 Track` == "B"), 1, 0)
+
+
+PY2019_fin_perf$Initial_BASIC_C = ifelse((PY2019_fin_perf$`Original Agreement Track (Renewals Only)` == "C" & PY2019_fin_perf$`Renewal (Y/N)` == "Yes") |
+                                             (PY2019_fin_perf$`Renewal (Y/N)` == "No" & 
+                                              PY2019_fin_perf$`PY 2019 Track` == "C"), 1, 0)
+
+
+PY2019_fin_perf$Initial_BASIC_D = ifelse((PY2019_fin_perf$`Original Agreement Track (Renewals Only)` == "D" & PY2019_fin_perf$`Renewal (Y/N)` == "Yes") |
+                                             (PY2019_fin_perf$`Renewal (Y/N)` == "No" & 
+                                              PY2019_fin_perf$`PY 2019 Track` == "D"), 1, 0)
+
+
+PY2019_fin_perf$Initial_BASIC_E = ifelse((PY2019_fin_perf$`Original Agreement Track (Renewals Only)` == "E" & PY2019_fin_perf$`Renewal (Y/N)` == "Yes") |
+                                             (PY2019_fin_perf$`Renewal (Y/N)` == "No" & 
+                                              PY2019_fin_perf$`PY 2019 Track` == "E"), 1, 0)
+
+
+PY2019_fin_perf$Initial_ENHANCED = ifelse((PY2019_fin_perf$`Original Agreement Track (Renewals Only)` == "EN" & PY2019_fin_perf$`Renewal (Y/N)` == "Yes") |
+                                             (PY2019_fin_perf$`Renewal (Y/N)` == "No" & 
+                                              PY2019_fin_perf$`PY 2019 Track` == "EN"), 1, 0)
+
+
+
+
+PY2019_fin_perf$Current_Track_1 = ifelse(PY2019_fin_perf$`PY 2019 Track` == "1" , 1, 0)
+
+PY2019_fin_perf$Current_Track_2 = ifelse(PY2019_fin_perf$`PY 2019 Track` == "2" , 1, 0)
+
+PY2019_fin_perf$Current_Track_3 = ifelse(PY2019_fin_perf$`PY 2019 Track` == "3" , 1, 0)
+
+PY2019_fin_perf$Current_Track_1_Plus = ifelse(PY2019_fin_perf$`PY 2019 Track` == "1+" , 1, 0)
+
+
+
+PY2019_fin_perf$Current_BASIC_A = ifelse(PY2019_fin_perf$`PY 2019 Track` == "A" , 1, 0)
+
+
+PY2019_fin_perf$Current_BASIC_B = ifelse(PY2019_fin_perf$`PY 2019 Track` == "B" , 1, 0)
+
+
+PY2019_fin_perf$Current_BASIC_C = ifelse(PY2019_fin_perf$`PY 2019 Track` == "C", 1, 0)
+
+
+PY2019_fin_perf$Current_BASIC_D = ifelse(PY2019_fin_perf$`PY 2019 Track` == "D" , 1, 0)
+
+
+PY2019_fin_perf$Current_BASIC_E = ifelse(PY2019_fin_perf$`PY 2019 Track` == "E" , 1, 0)
+
+
+PY2019_fin_perf$Current_ENHANCED = ifelse(PY2019_fin_perf$`PY 2019 Track` == "EN" , 1, 0)
+
+
+unique(PY2019_fin_perf$`PY 2019 Track`)
+
+names(PY2019_fin_perf)
+
+```
+
+
+
+```{r Format additional PY 2019 Vars}
+PY2019_fin_perf$Adv_Pay = ifelse(PY2019_fin_perf$`Advance Payment Status` == "Yes", 1, 0)
+
+PY2019_fin_perf$AIM = ifelse(PY2019_fin_perf$`AIM Status` == "Yes", 1, 0)
+
+mean_qualscore = .9217
+
+### PRORATE ALERT ###
+PY2019_fin_perf$GenSaveLoss = ifelse(PY2019_fin_perf[["PY 2019 Performance Flag"]] %in% c(0,3),PY2019_fin_perf$`Total Benchmark Minus Assigned Beneficiary Expenditures (prorated, if applicable) ($)` , 0)
+
+PY2019_fin_perf$DisAdj = ifelse(PY2019_fin_perf$`Extreme and Uncontrollable Circumstances Adjustment ($)` <0,PY2019_fin_perf$`Extreme and Uncontrollable Circumstances Adjustment ($)` , NA)
+
+PY2019_fin_perf = PY2019_fin_perf %>% 
+  ### PRORATE ALERT ###
+  mutate(EarnSaveLoss = if_else(`Earned Performance Payment (prorated if applicable) ($)` > 0 , `Earned Performance Payment (prorated if applicable) ($)`, if_else(`Payment due to CMS (prorated if applicable) ($)` < 0, `Payment due to CMS (prorated if applicable) ($)`,0)),
+         
+         DisAffQual = `ACO Extreme and Uncontrollable Circumstance Affected for Quality Scoring`,
+         
+         Met_QPS = if_else(`Eligible For Shared Savings Based on Quality` == "Yes", 1, 0),
+         
+         RecvdMean = if_else(DisAffQual == 1 & round(`Quality Score (%)`,4) ==  mean_qualscore,1,0),
+         
+         Prior_Sav_Adj  = ifelse(`Original Agreement Start Date` < lubridate::dmy("1/1/2014"), `Adjustment for Prior Savings (2016 Renewals Only)`,NA),
+
+         RegTrndUpdt = if_else(`PY 2019 Benchmark Trend and Update Factors` == "Regional",1,0),
+         
+         PosRegAdj = if_else(`Sign of Regional Adjustment (2017, 2018 and 2019 Renewals Only)` == "Positive",1, ifelse(`Sign of Regional Adjustment (2017, 2018 and 2019 Renewals Only)` == "Negative",0,NA)),
+         
+         Adv_Pay_Amt = ifelse(`Advance Payment or AIM Status` == "Yes", `PY 2019 Advance Payment or AIM Amount ($)`,NA),
+         
+         Adv_Pay_Recoup = ifelse(`Advance Payment or AIM Status` == "Yes", `PY 2019 Advance Payment or AIM Recoupment ($)`,NA),
+         
+         RevLossLimit = if_else(`Loss-Sharing Limit Type` == "Revenue-based",1,0))
+
+PY2019_fin_perf = PY2019_fin_perf %>% left_join(Quality_dataset, by=c("ACO ID"= "ACO_ID"))
+
+
+
+```
+
+
+
+
+```{r PY 2019 FULL PUF RISK EXPU}
+RISK_EXPU_19 = read_excel("Z:\\finance\\financial reconciliation\\fin rec management reports (all years)\\PY 2019 Financial Reconciliation Management Report.xlsx", sheet = "Risk and EXPU levels", skip = 2)
+names(RISK_EXPU_19)[1] = "ACO_ID"
+names(RISK_EXPU_19)[2] = "Year"
+RISK_EXPU_19 = RISK_EXPU_19 %>% select(ACO_ID, Year, `ESRD Expenditures`:`Aged/non-dual expenditures`, `ESRD Average HCC Risk Score (Newly and Continuously Assigned)`: `Aged/non-dual Average HCC Risk Score (Newly and Continuously Assigned)`, `Per Capita Assigned Beneficiary Expenditures`)
+RISK_EXPU_19 = RISK_EXPU_19 %>% group_by(ACO_ID) %>%  mutate(yearnum = 1:n())
+
+prefix = c("Per_Capita_Exp_ALL", "CMS_HCC_RiskScore")
+category = c("ESRD", "DIS", "AGDU", "AGND")
+year = c("BY1", "BY2", "BY3", "PY")
+
+varname_grid = as.data.frame(expand.grid(prefix, category, year)) %>% arrange(Var3, Var1)
+varnames = pmap(varname_grid, paste,sep="_")
+
+RISK_EXPU_19_filtered = RISK_EXPU_19[,"ACO_ID"] %>% group_by(ACO_ID) %>% slice(1)
+
+
+
+extract_function = function(row,column,data,...){
+  temp_data = data[data$"yearnum" == row,column]
+  temp_data = pull(temp_data,1)
+  
+}
+
+
+expand.grid(3:11,1:4)
+
+extract_grid = expand.grid(3:(ncol(RISK_EXPU_19)-2),1:length(year))
+names(extract_grid) = c("column", "row")
+
+RISK_EXPU_19_filtered = pmap_dfc(extract_grid,extract_function,data=RISK_EXPU_19)
+names(RISK_EXPU_19_filtered) = varnames
+RISK_EXPU_19_filtered$ACO_ID = unique(RISK_EXPU_19$ACO_ID)
+RISK_EXPU_19_filtered = RISK_EXPU_19_filtered %>% select(ACO_ID, everything())
+
+#add in the additional total columns
+RISK_EXPU_19_filtered$Per_Capita_Exp_TOTAL_PY = RISK_EXPU_19[RISK_EXPU_19$"yearnum" == 4,ncol(RISK_EXPU_19) - 1]$`Per Capita Assigned Beneficiary Expenditures`
+RISK_EXPU_19_filtered$Per_Capita_Exp_TOTAL_PY
+
+
+
+RISK_EXPU_19_filtered = RISK_EXPU_19_filtered %>% select(ACO_ID:Per_Capita_Exp_ALL_AGND_PY,Per_Capita_Exp_TOTAL_PY,everything())
+
+
+temp = RISK_EXPU_19 %>% filter(ACO_ID == "A1001")
+
+
+
+```
+
+```{r PY 2019 PSN YRS BNCH}
+
+P_BM_19 = read_excel("Z:\\finance\\financial reconciliation\\fin rec management reports (all years)\\PY 2019 Financial Reconciliation Management Report.xlsx", sheet = "PsnYrs and Benchmark checks", skip = 6)
+P_BM_19_names = read_excel("Z:\\finance\\financial reconciliation\\fin rec management reports (all years)\\PY 2019 Financial Reconciliation Management Report.xlsx", sheet = "PsnYrs and Benchmark checks", skip = 1)
+names(P_BM_19) = names(P_BM_19_names)
+rm(P_BM_19_names)
+
+P_BM_19 = P_BM_19 %>% select(ACO_ID = `ACO ID`,
+                             N_AB_Year_ESRD_PY=`PY 2019 Total ESRD Person Years`,
+                             N_AB_Year_DIS_PY=`PY 2019 Total Disabled Person Years`,
+                             N_AB_Year_AGED_Dual_PY=`PY 2019 Total Aged/dual Person Years`,
+                             N_AB_Year_AGED_NonDual_PY=`PY 2019 Total Aged/non-dual Person Years`,
+                             N_AB_Year_ESRD_BY3=`BY3 Total ESRD Person Years`,
+                             N_AB_Year_DIS_BY3=`BY3 Total Disabled Person Years`,
+                             N_AB_Year_AGED_Dual_BY3=`BY3 Total Aged/dual Person Years`,
+                             N_AB_Year_AGED_NonDual_BY3=`BY3 Total Aged/non-dual Person Years`                             
+                             )
+
+```
+
+```{r PY 2019 ASRs}
+PY2019_ASR_prosp = read_excel("Y:\\data\\reports\\Summary combined report batch D7 2019\\TI00.ACO.A181.AASR.P.T16DD7.Y2019.AALL.xlsx", skip = 2) %>% select(`ACO ID`, `Beneficiaries Younger than 65 Years Old`:`Beneficiaries who are Older than 85 Years Old`,`Female Beneficiaries`, `Male Beneficiaries` )
+PY2019_ASR_retro = read_excel("Y:\\data\\reports\\Summary combined report batch D7 2019\\TI00.ACO.A181.AASR.R.T16DD7.Y2019.AALL.xlsx", skip = 2)%>% select(`ACO ID`, `Beneficiaries Younger than 65 Years Old`:`Beneficiaries who are Older than 85 Years Old`,`Female Beneficiaries`, `Male Beneficiaries` )
+
+
+PY2019_ASR = rbind(PY2019_ASR_prosp, PY2019_ASR_retro) %>% select(ACO_ID = `ACO ID`,
+                                                                  N_Ben_Age_0_64 = `Beneficiaries Younger than 65 Years Old`,
+                                                                  N_Ben_Age_65_74 = `Beneficiaries who are 65-74 Years Old`,
+                                                                  N_Ben_Age_75_84 = `Beneficiaries who are 75-84 Years Old`,
+                                                                  N_Ben_Age_85plus = `Beneficiaries who are Older than 85 Years Old`,
+                                                                  N_Ben_Female = `Female Beneficiaries`,
+                                                                  N_Ben_Male = `Male Beneficiaries`
+                                                                  )
+
+```
+
+
+```{r PY 2019 Bene RIFs}
+
+PY2019_bene_rif = read_excel("Z:\\pgm output\\ACO-2983 (2019 Fin Rec Beneficiary RIF)\\ACO2983_Summary.xlsx") %>% select(ACO_ID = ACOID, 
+                                                                                                                           N_Ben_Race_White = N_BEN_RACE_WHITE,
+                                                                                                                           N_Ben_Race_Black = N_BEN_RACE_BLACK,
+                                                                                                                           N_Ben_Race_Asian = N_BEN_RACE_ASIAN,
+                                                                                                                           N_Ben_Race_Hisp = N_BEN_RACE_HISP,
+                                                                                                                           N_Ben_Race_Native = N_BEN_RACE_NATIVE,
+                                                                                                                           N_Ben_Race_Other = N_BEN_RACE_OTHER,
+                                                                                                                           N_BEN_RACE_UNKNOWN) %>% 
+  replace_na(list(N_Ben_Race_Native = 0)) %>% 
+  mutate(N_Ben_Race_Other = N_Ben_Race_Other + N_BEN_RACE_UNKNOWN) %>% 
+  select(-N_BEN_RACE_UNKNOWN)
+
+```
+
+
+
+```{r PY 2019 EXPU RSTs}
+PY2019_EXPU_RST_prosp = read_excel("Y:\\data\\reports\\Summary combined report batch D7 2019\\TI00.ACO.A181.AEXPU.P.T21DD7.Y2019.AALL.xlsx", skip=2) 
+%>% select(ACO_ID = `ACO ID`,
+           CapAnn_INP_All = `Inpatient Expenditures`,
+           CapAnn_INP_S_trm = `Short-Term Hospital`,
+           CapAnn_INP_L_trm = `Long-Term Hospital`,
+           CapAnn_INP_Rehab = `Rehabilitation Hospital or Unit`,
+           CapAnn_INP_Psych = `Psychiatric Hospital or Unit`,
+           CapAnn_HSP = `Hospice Expenditures`,
+           CapAnn_SNF = `SNF Expenditures`,
+           CapAnn_OPD = `Outpatient Facility Expenditures`,
+           CapAnn_PB = `Part B Expenditures, Total`,
+           CapAnn_AmbPay = `Part B Expenditures, Ambulance Expenditures`,
+           CapAnn_HHA = `Home Health Expenditures`,
+           CapAnn_DME = `DME Expenditures`,
+           ADM = `Hospital Discharges, Total`,
+           ADM_S_Trm = `Hospital Discharges, Short-Term Hospital`,
+           ADM_L_Trm = `Hospital Discharges, Long-Term Hospital`,
+           ADM_Rehab = `Hospital Discharges, Rehabilitation Hospital or Unit`,
+           ADM_Psych = `Hospital Discharges, Psychiatric Hospital or Unit`,
+           chf_adm = `Congestive Heart Failure (ACSC Discharge rate per 1,000 beneficiaries)`,
+           copd_adm = `Chronic Obstructive Pulmonary Disease (ACSC Discharge rate per 1,000 beneficiaries)`,
+           prov_Rate_1000 = `30 Day Post Discharge Provider Visits per 1,000 Discharges`,
+           P_EDV_Vis = `Emergency Department Visits`,
+           P_EDV_Vis_HOSP = `Emergency Department Visits that lead to a Hospitalization`,
+           P_CT_VIS = `CT Events`,
+           P_MRI_VIS = `MRI Events`,
+           P_EM_Total = `Primary Care Services`,
+           P_EM_PCP_Vis = `Primary Care Services with a Primary Care Physician`,
+           P_EM_SP_Vis = `Primary Care Services with a Specialist`,
+           P_Nurse_Vis = `Primary Care Services with NP/PA/CNS`,
+           P_FQHC_RHC_Vis = `Primary Care Services with FQHC/RHC`,
+           P_SNF_ADM = `Rate per 1,000 Person Years - Discharges...65`)
+
+PY2019_EXPU_RST_prosp$`Rate per 1,000 Person Years - Discharges...95`
+PY2019_EXPU_RST_retro = read_excel("Y:\\data\\reports\\Summary combined report batch D7 2019\\TI00.ACO.A181.AEXPU.R.T21DD7.Y2019.AALL.xlsx", skip=2) %>% 
+  select(ACO_ID = `ACO ID`,
+         CapAnn_INP_All = `Inpatient Expenditures`,
+         CapAnn_INP_S_trm = `Short-Term Hospital`,
+         CapAnn_INP_L_trm = `Long-Term Hospital`,
+         CapAnn_INP_Rehab = `Rehabilitation Hospital or Unit`,
+         CapAnn_INP_Psych = `Psychiatric Hospital or Unit`,
+         CapAnn_HSP = `Hospice Expenditures`,
+         CapAnn_SNF = `SNF Expenditures`,
+         CapAnn_OPD = `Outpatient Facility Expenditures`,
+         CapAnn_PB = `Part B Expenditures, Total`,
+         CapAnn_AmbPay = `Part B Expenditures, Ambulance Expenditures`,
+         CapAnn_HHA = `Home Health Expenditures`,
+         CapAnn_DME = `DME Expenditures`,
+         ADM = `Hospital Discharges, Total`,
+         ADM_S_Trm = `Hospital Discharges, Short-Term Hospital`,
+         ADM_L_Trm = `Hospital Discharges, Long-Term Hospital`,
+         ADM_Rehab = `Hospital Discharges, Rehabilitation Hospital or Unit`,
+         ADM_Psych = `Hospital Discharges, Psychiatric Hospital or Unit`,
+         chf_adm = `Congestive Heart Failure (ACSC Discharge rate per 1,000 beneficiaries)`,
+         copd_adm = `Chronic Obstructive Pulmonary Disease (ACSC Discharge rate per 1,000 beneficiaries)`,
+         prov_Rate_1000 = `30 Day Post Discharge Provider visits per 1,000 Discharges`,
+         P_EDV_Vis = `Emergency Department Visits`,
+         P_EDV_Vis_HOSP = `Emergency Department Visits that lead to a Hospitalization`,
+         P_CT_VIS = `CT Events`,
+         P_MRI_VIS = `MRI Events`,
+         P_EM_Total = `Primary Care Services`,
+         P_EM_PCP_Vis = `Primary Care Services with a Primary Care Physician`,
+         P_EM_SP_Vis = `Primary Care Services with a Specialist`,
+         P_Nurse_Vis = `Primary Care Services with NP/PA/CNS`,
+         P_FQHC_RHC_Vis = `Primary Care Services with FQHC/RHC`,
+         P_SNF_ADM = `Rate per 1,000 Person Years - Discharges...65`)
+
+PY2019_EXPU_RST = rbind(PY2019_EXPU_RST_prosp, PY2019_EXPU_RST_retro)
+
+
+
+```
+
+
+```{r PY 2019 Provider RIF}
+library(readr)
+#PY_2019_Provider_RIF = readr::read_csv("Z:\\pgm output\\ACO-3490 (2019 Provider RIF)\\RIF_2019_20200914.csv", col_types = cols(
+#  ACO_ID = col_character(),
+#  ACO_NAME = col_character(),
+#  START_DATE = col_character(),
+#  TIN = col_character(),
+#  TIN_LBN = col_character(),
+#  NPI = col_character(),
+#  NPI_Name = col_character(),
+#  CCN = col_character(),
+#  FAC_TYPE = col_character(),
+#  FAC_DESC = col_character(),
+#  SPEC = col_character(),
+#  ACO_LOC = col_double(),
+#  Sole_Proprietor_Linked_TIN = col_character(),
+#  Sole_Proprietor = col_character()
+#))
+
+
+
+#saveRDS(PY_2019_Provider_RIF, "Z:\\pgm output\\ACO-3490 (2019 Provider RIF)\\RIF_2019_20200914.RDS")  
+PY_2019_Provider_RIF = readRDS("Z:\\pgm output\\ACO-3490 (2019 Provider RIF)\\RIF_2019_20200914.RDS")
+
+PY_2019_Provider_RIF_ACO_CCN = PY_2019_Provider_RIF %>% 
+  group_by(ACO_ID, CCN) %>% 
+  slice(1) %>% 
+  group_by(ACO_ID) %>% 
+  summarize(
+    N_CAH = sum(FAC_TYPE == "C" & FAC_DESC == "Critical Access Hospital",na.rm=TRUE),
+    N_FQHC = sum(FAC_TYPE == "F",na.rm=TRUE),
+    N_RHC = sum(FAC_TYPE == "R",na.rm=TRUE),
+    N_ETA = sum(FAC_TYPE == "T",na.rm=TRUE),
+    N_Hosp = sum(FAC_TYPE == "X" & FAC_DESC == "Short-Term Hospital",na.rm=TRUE),
+    N_Fac_Other = sum((FAC_TYPE == "X" & FAC_DESC != "Short-Term Hospital") |
+                        (FAC_TYPE == "C" & FAC_DESC != "Critical Access Hospital"),na.rm=TRUE))
+
+N_Spec_Codes = c('02',
+'03',
+'04',
+'05',
+'06',
+'07',
+'09',
+'10',
+'12',
+'13',
+'14',
+'16',
+'17',
+'18',
+'20',
+'21',
+'22',
+'23',
+'24',
+'25',
+'26',
+'27',
+'28',
+'29',
+'30',
+'33',
+'34',
+'36',
+'39',
+'40',
+'44',
+'46',
+'66',
+'72',
+'76',
+'77',
+'78',
+'79',
+'81',
+'82',
+'83',
+'84',
+'85',
+'86',
+'90',
+'91',
+'92',
+'93',
+'94',
+'98',
+'99',
+'C0',
+'C3',
+'C6',
+'C7',
+'C8', 
+'C9'
+)
+
+PY_2019_Provider_RIF_ACO_NPI = PY_2019_Provider_RIF %>% 
+  group_by(ACO_ID, NPI) %>% 
+  slice(1) %>% 
+  group_by(ACO_ID) %>% 
+  summarize(
+    N_PCP = sum(SPEC %in% c("01", "08", "11", "37", "38"),na.rm=TRUE),
+    N_NP = sum(SPEC %in% c("50"),na.rm=TRUE),
+    N_PA = sum(SPEC %in% c("97"),na.rm=TRUE),
+    N_CNS = sum(SPEC %in% c("89"),na.rm=TRUE),
+    N_Spec = sum(SPEC %in% N_Spec_Codes,na.rm=TRUE))
+
+
+PY_2019_Provider_RIF = PY_2019_Provider_RIF_ACO_CCN %>% left_join(PY_2019_Provider_RIF_ACO_NPI,by=c("ACO_ID"))
+names(PY_2019_Provider_RIF)
+
+#Compare with Matt's output
+Matt_Provider_RIF_2019 = read_excel("Z:\\finance\\PUF\\2019\\Validation\\RIF2019_ACO_Counts.xlsx")
+Validate_Provider_RIF_2019 = left_join(PY_2019_Provider_RIF, Matt_Provider_RIF_2019,by=c("ACO_ID"="aco_id")) %>% mutate(
+  check_N_CAH= N_CAH.x == N_CAH.y,
+  check_N_FQHC= N_FQHC.x == N_FQHC.y,
+  check_N_RHC= N_RHC.x == N_RHC.y,
+  check_N_ETA= N_ETA.x == N_ETA.y,
+  check_N_Hosp= N_Hosp.x == N_Hosp.y,
+  check_N_Fac_Other= N_Fac_Other.x == N_Fac_Other.y,
+  check_N_PCP= N_PCP.x == N_PCP.y,
+  check_N_NP= N_NP.x == N_NP.y,
+  check_N_PA= N_PA.x == N_PA.y,
+  check_N_CNS= N_CNS.x == N_CNS.y,
+  check_N_Spec= N_Spec.x == N_Spec.y,
+  diff_N_Spec = N_Spec.x - N_Spec.y
+  
+)
+mean(Validate_Provider_RIF_2019$check_N_CAH)
+Validate_Provider_RIF_2019 %>% summarize(across(check_N_CAH:check_N_Spec, mean))
+
+
+
+
+#openxlsx::write.xlsx(Validate_Provider_RIF_2019,"Z:\\finance\\PUF\\2019\\Validation\\Provider_RIF_Counts_2019.xlsx")
+
+
+#check N_Spec specifically against composition reports
+PY_2019_ACO_Comp = read_excel("Z:\\pgm output\\ACO-3405 (2019 Final Composition Datasets)\\Composition_PY2019_Final_20200722_aco_tin_ccn.xlsx") %>% select(ACO_ID, SCP_Count, PCP_Count)
+mean(PY_2019_ACO_Comp$SCP_Count == PY_2019_Provider_RIF$N_Spec)
+
+```
+
+
+
+```{r PY 2019 CapAnn_INP_Other}
+PY_2019_CapAnn_INP_Other = read_csv("Z:\\finance\\PUF\\2019\\Full PUF\\Input\\E3Y19D7.csv") %>% select(ACO_ID = ACOID, CapAnn_INP_Other = CAPANN_INP_OTHER19)
+
+```
+
+
+```{r PY 2019 PUF Combine data}
+
+#merge all data together
+PY2019_PUF= PY2019_mini_PUF %>% left_join(RISK_EXPU_19_filtered) %>% left_join(P_BM_19) %>% left_join(PY2019_ASR) %>% left_join(PY2019_bene_rif) %>% left_join(PY2019_EXPU_RST) %>% left_join(PY_2019_Provider_RIF) %>% left_join(PY_2019_CapAnn_INP_Other)
+
+full_PUF_var_order = c('ACO_ID',
+'ACO_Name',
+'ACO_State',
+'Agree_Type',
+'Participation_Six_Months', 
+'Agreement_Period_Num', 
+'Initial_Start_Date',
+'Initial_Track_1',
+'Initial_Track_2',
+'Initial_Track_3',
+'Initial_Track_1_Plus',
+'Initial_BASIC_A',
+'Initial_BASIC_B',
+'Initial_BASIC_C',
+'Initial_BASIC_D',
+'Initial_BASIC_E',
+'Initial_ENHANCED',
+'Current_Start_Date',
+'Current_Track_1',
+'Current_Track_2',
+'Current_Track_3',
+'Current_Track_1_Plus',
+'Current_BASIC_A',
+'Current_BASIC_B',
+'Current_BASIC_C',
+'Current_BASIC_D',
+'Current_BASIC_E',
+'Current_ENHANCED',
+'Risk_Model',
+'Adv_Pay',
+'AIM',
+'SNF_Waiver',
+'N_AB',
+'Sav_rate',
+'MinSavPerc',
+'BnchmkMinExp',
+'GenSaveLoss',
+'DisAdj',
+'EarnSaveLoss',
+'DisAffQual',
+'Met_QPS',
+'QualScore',
+'RecvdMean',
+'Prior_Sav_Adj',
+'RegTrndUpdt',
+'PosRegAdj',
+'UpdatedBnchmk',
+'HistBnchmk',
+'ABtotBnchmk',
+'ABtotExp',
+'Adv_Pay_Amt',
+'Adv_Pay_Recoup',
+'QualPerfShare',
+'FinalShareRate',
+'RevLossLimit',
+'Rev_Exp_Cat',
+'Per_Capita_Exp_ALL_ESRD_BY1',
+'Per_Capita_Exp_ALL_DIS_BY1',
+'Per_Capita_Exp_ALL_AGDU_BY1',
+'Per_Capita_Exp_ALL_AGND_BY1',
+'Per_Capita_Exp_ALL_ESRD_BY2',
+'Per_Capita_Exp_ALL_DIS_BY2',
+'Per_Capita_Exp_ALL_AGDU_BY2',
+'Per_Capita_Exp_ALL_AGND_BY2',
+'Per_Capita_Exp_ALL_ESRD_BY3',
+'Per_Capita_Exp_ALL_DIS_BY3',
+'Per_Capita_Exp_ALL_AGDU_BY3',
+'Per_Capita_Exp_ALL_AGND_BY3',
+'Per_Capita_Exp_ALL_ESRD_PY',
+'Per_Capita_Exp_ALL_DIS_PY',
+'Per_Capita_Exp_ALL_AGDU_PY',
+'Per_Capita_Exp_ALL_AGND_PY',
+'Per_Capita_Exp_TOTAL_PY',
+'CMS_HCC_RiskScore_ESRD_BY1',
+'CMS_HCC_RiskScore_DIS_BY1',
+'CMS_HCC_RiskScore_AGDU_BY1',
+'CMS_HCC_RiskScore_AGND_BY1',
+'CMS_HCC_RiskScore_ESRD_BY2',
+'CMS_HCC_RiskScore_DIS_BY2',
+'CMS_HCC_RiskScore_AGDU_BY2',
+'CMS_HCC_RiskScore_AGND_BY2',
+'CMS_HCC_RiskScore_ESRD_BY3',
+'CMS_HCC_RiskScore_DIS_BY3',
+'CMS_HCC_RiskScore_AGDU_BY3',
+'CMS_HCC_RiskScore_AGND_BY3',
+'CMS_HCC_RiskScore_ESRD_PY',
+'CMS_HCC_RiskScore_DIS_PY',
+'CMS_HCC_RiskScore_AGDU_PY',
+'CMS_HCC_RiskScore_AGND_PY',
+'N_AB_Year_ESRD_BY3',
+'N_AB_Year_DIS_BY3',
+'N_AB_Year_AGED_Dual_BY3',
+'N_AB_Year_AGED_NonDual_BY3',
+'N_AB_Year_PY',
+'N_AB_Year_ESRD_PY',
+'N_AB_Year_DIS_PY',
+'N_AB_Year_AGED_Dual_PY',
+'N_AB_Year_AGED_NonDual_PY',
+'N_Ben_Age_0_64',
+'N_Ben_Age_65_74',
+'N_Ben_Age_75_84',
+'N_Ben_Age_85plus',
+'N_Ben_Female',
+'N_Ben_Male',
+'N_Ben_Race_White',
+'N_Ben_Race_Black',
+'N_Ben_Race_Asian',
+'N_Ben_Race_Hisp',
+'N_Ben_Race_Native',
+'N_Ben_Race_Other',
+'CapAnn_INP_All',
+'CapAnn_INP_S_trm',
+'CapAnn_INP_L_trm',
+'CapAnn_INP_Rehab',
+'CapAnn_INP_Psych',
+'CapAnn_HSP',
+'CapAnn_SNF',
+'CapAnn_INP_Other',
+'CapAnn_OPD',
+'CapAnn_PB',
+'CapAnn_AmbPay',
+'CapAnn_HHA',
+'CapAnn_DME',
+'ADM',
+'ADM_S_Trm',
+'ADM_L_Trm',
+'ADM_Rehab',
+'ADM_Psych',
+'chf_adm',
+'copd_adm',
+'prov_Rate_1000',
+'P_EDV_Vis',
+'P_EDV_Vis_HOSP',
+'P_CT_VIS',
+'P_MRI_VIS',
+'P_EM_Total',
+'P_EM_PCP_Vis',
+'P_EM_SP_Vis',
+'P_Nurse_Vis',
+'P_FQHC_RHC_Vis',
+'P_SNF_ADM',
+'N_CAH',
+'N_FQHC',
+'N_RHC',
+'N_ETA',
+'N_Hosp',
+'N_Fac_Other',
+'N_PCP',
+'N_Spec',
+'N_NP',
+'N_PA',
+'N_CNS',
+'ACO1',
+'ACO2',
+'ACO3',
+'ACO4',
+'ACO5',
+'ACO6',
+'ACO7',
+'ACO34',
+'ACO45',
+'ACO46',
+'ACO8',
+'ACO38',
+'ACO43',
+'ACO13',
+'ACO14',
+'ACO17',
+'ACO18',
+'ACO19',
+'ACO20',
+'ACO42',
+'ACO40',
+'ACO27',
+'ACO28')
+
+PY2019_PUF = PY2019_PUF %>% select(full_PUF_var_order)
+
+openxlsx::write.xlsx(PY2019_PUF, "Z:\\finance\\PUF\\2019\\Full PUF\\Luke_PY2019_PUF.xlsx")
+
+
+
+```
+
+
+
+
+
+
+
+```{r Compare with Alex calculations}
+PY2019_PUF_Alex= read_excel("Z:\\finance\\PUF\\2019\\Full PUF\\PY 2019 ACO Full PUF_Draft_Alex.xlsx")
+names(PY2019_PUF_Alex) = names(PY2019_PUF)
+
+#equalize column classes
+
+
+PY2019_PUF_Alex$Initial_Start_Date = as.Date(PY2019_PUF_Alex$Initial_Start_Date)
+PY2019_PUF_Alex$Current_Start_Date = as.Date(PY2019_PUF_Alex$Current_Start_Date)
+
+PY2019_PUF_Alex$Sav_rate = as.numeric(gsub("%","",PY2019_PUF_Alex$Sav_rate))
+PY2019_PUF_Alex$MinSavPerc = as.numeric(gsub("%","",PY2019_PUF_Alex$MinSavPerc))
+PY2019_PUF_Alex$QualPerfShare = as.numeric(gsub("%","",PY2019_PUF_Alex$QualPerfShare))
+PY2019_PUF_Alex$FinalShareRate = as.numeric(gsub("%","",PY2019_PUF_Alex$FinalShareRate))
+
+#PY2019_PUF_Alex[,names(PY_2019_Provider_RIF)[2:ncol(PY_2019_Provider_RIF)]] = sapply()
+#PY2019_PUF_Alex$Sav_rate = PY2019_PUF_Alex$Sav_rate * .01
+#PY2019_PUF_Alex$MinSavPerc = PY2019_PUF_Alex$MinSavPerc * .01
+#PY2019_PUF_Alex$QualPerfShare = PY2019_PUF_Alex$QualPerfShare * .01
+#PY2019_PUF_Alex$FinalShareRate = PY2019_PUF_Alex$FinalShareRate * .01
+
+
+PY2019_PUF$Initial_Start_Date = as.Date(PY2019_PUF$Initial_Start_Date)
+PY2019_PUF$Current_Start_Date = as.Date(PY2019_PUF$Current_Start_Date)
+
+#convert quality vars to numeric
+PY2019_PUF_Alex[,153:175] = sapply(PY2019_PUF_Alex[,153:175], as.numeric)
+PY2019_PUF[,153:175] = sapply(PY2019_PUF[,153:175], as.numeric)
+
+names(PY2019_PUF_Alex)
+
+char_comparison_2019 = map2_df(PY2019_PUF[,sapply(PY2019_PUF, class) %in% c('character','Date') ], PY2019_PUF_Alex[,sapply(PY2019_PUF, class)  %in% c('character','Date')], function(x,y) {
+x==y
+  })
+
+num_comparison_2019 = map2_df(PY2019_PUF[,sapply(PY2019_PUF, class) %in% c('integer','numeric')], PY2019_PUF_Alex[,sapply(PY2019_PUF, class) %in% c('integer','numeric')], function(x,y) {
+  if(abs(mean(x,na.rm=TRUE)) > 10000){
+    abs(x-y) <= .5001
+  }
+  
+  else if(abs(mean(x,na.rm=TRUE)) > 500){
+    abs(x-y) <= .5001
+  }
+  
+  else if(abs(mean(x,na.rm=TRUE)) > 2) {
+    abs(x-y) <=.5001
+  }
+  else{
+    abs(x-y) <=.01
+  }
+  
+})
+
+
+
+names(num_comparison_2019)[sapply(num_comparison_2019,mean,na.rm=TRUE)<1]
+names(char_comparison_2019)[sapply(char_comparison_2019,mean,na.rm=TRUE)<1]
+
+
+
+
+
+
+PY2019_A_PUF_Alex = read_excel("Z:\\finance\\PUF\\2019\\Full PUF\\PY 2019A ACO Full PUF_Draft_Alex.xlsx")[1:nrow(PY2019_A_PUF),]
+nrow(PY2019_A_PUF_Alex)
+names(PY2019_A_PUF_Alex) = names(PY2019_PUF)
+
+#equalize column classes
+
+class(PY2019_A_PUF_Alex$Initial_Start_Date)
+class(PY2019_PUF$Initial_Start_Date)
+PY2019_A_PUF_Alex$Initial_Start_Date = as.Date(PY2019_A_PUF_Alex$Initial_Start_Date)
+PY2019_A_PUF_Alex$Current_Start_Date = as.Date(PY2019_A_PUF_Alex$Current_Start_Date)
+
+PY2019_A_PUF_Alex$Sav_rate = as.numeric(gsub("%","",PY2019_A_PUF_Alex$Sav_rate))
+PY2019_A_PUF_Alex$MinSavPerc = as.numeric(gsub("%","",PY2019_A_PUF_Alex$MinSavPerc))
+PY2019_A_PUF_Alex$QualPerfShare = as.numeric(gsub("%","",PY2019_A_PUF_Alex$QualPerfShare))
+PY2019_A_PUF_Alex$FinalShareRate = as.numeric(gsub("%","",PY2019_A_PUF_Alex$FinalShareRate))
+
+#PY2019_A_PUF_Alex[,names(PY_2019_Provider_RIF)[2:ncol(PY_2019_Provider_RIF)]] = sapply()
+
+
+PY2019_A_PUF$Initial_Start_Date = as.Date(PY2019_A_PUF$Initial_Start_Date)
+PY2019_A_PUF$Current_Start_Date = as.Date(PY2019_A_PUF$Current_Start_Date)
+
+#convert quality vars to numeric
+PY2019_A_PUF_Alex[,153:175] = sapply(PY2019_A_PUF_Alex[,153:175], as.numeric)
+PY2019_A_PUF[,153:175] = sapply(PY2019_A_PUF[,153:175], as.numeric)
+
+
+names(PY2019_A_PUF_Alex)[sapply(PY2019_A_PUF_Alex, class) != sapply(PY2019_A_PUF, class)]
+
+
+
+
+char_comparison_2019_A = map2_df(PY2019_A_PUF[,sapply(PY2019_A_PUF, class) %in% c('character','Date') ], PY2019_A_PUF_Alex[,sapply(PY2019_A_PUF, class)  %in% c('character','Date')], function(x,y) {
+x==y
+  })
+
+num_comparison_2019_A = map2_df(PY2019_A_PUF[,sapply(PY2019_A_PUF, class) %in% c('integer','numeric')], PY2019_A_PUF_Alex[,sapply(PY2019_A_PUF_Alex, class) %in% c('integer','numeric')], function(x,y) {
+  if(abs(mean(x,na.rm=TRUE)) > 10000){
+    abs(x-y) <= .5001
+  }
+  
+  else if(abs(mean(x,na.rm=TRUE)) > 500){
+    abs(x-y) <= .5001
+  }
+  
+  else if(abs(mean(x,na.rm=TRUE)) > 2) {
+    abs(x-y) <=.5001
+  }
+  else{
+    abs(x-y) <=.01
+  }
+  
+})
+
+
+
+names(num_comparison_2019_A)[sapply(num_comparison_2019_A,mean,na.rm=TRUE)<1]
+names(char_comparison_2019_A)[sapply(char_comparison_2019_A,mean,na.rm=TRUE)<1]
+
+
+```
+
+
+
+```{r Compare with final data.cms.gov versions}
+PY2019_PUF_csv = read_csv("Z:\\finance\\PUF\\2019\\Full PUF\\data.cms.gov files\\2019_Shared_Savings_Program__SSP__Accountable_Care_Organizations__ACO__PUF.csv") %>% arrange(ACO_ID)
+names(PY2019_PUF_csv) = names(PY2019_PUF)
+
+#equalize column classes
+PY2019_PUF_csv$Initial_Start_Date = mdy(PY2019_PUF_csv$Initial_Start_Date)
+PY2019_PUF_csv$Current_Start_Date = mdy(PY2019_PUF_csv$Current_Start_Date)
+
+PY2019_PUF_csv$Sav_rate = as.numeric(gsub("%","",PY2019_PUF_csv$Sav_rate))
+PY2019_PUF_csv$MinSavPerc = as.numeric(gsub("%","",PY2019_PUF_csv$MinSavPerc))
+PY2019_PUF_csv$QualPerfShare = as.numeric(gsub("%","",PY2019_PUF_csv$QualPerfShare))
+PY2019_PUF_csv$FinalShareRate = as.numeric(gsub("%","",PY2019_PUF_csv$FinalShareRate))
+
+#PY2019_PUF_csv[,names(PY_2019_Provider_RIF)[2:ncol(PY_2019_Provider_RIF)]] = sapply()
+
+PY2019_PUF$Initial_Start_Date = as.Date(PY2019_PUF$Initial_Start_Date)
+PY2019_PUF$Current_Start_Date = as.Date(PY2019_PUF$Current_Start_Date)
+
+#convert quality vars to numeric
+PY2019_PUF_csv[,153:175] = sapply(PY2019_PUF_csv[,153:175], as.numeric)
+PY2019_PUF[,153:175] = sapply(PY2019_PUF[,153:175], as.numeric)
+
+names(PY2019_PUF_csv)
+
+char_comparison_2019 = map2_df(PY2019_PUF[,sapply(PY2019_PUF, class) %in% c('character','Date') ], PY2019_PUF_csv[,sapply(PY2019_PUF, class)  %in% c('character','Date')], function(x,y) {
+x==y
+  })
+
+num_comparison_2019 = map2_df(PY2019_PUF[,sapply(PY2019_PUF, class) %in% c('integer','numeric')], PY2019_PUF_csv[,sapply(PY2019_PUF, class) %in% c('integer','numeric')], function(x,y) {
+  if(abs(mean(x,na.rm=TRUE)) > 10000){
+    abs(x-y) <= .5001
+  }
+  
+  else if(abs(mean(x,na.rm=TRUE)) > 500){
+    abs(x-y) <= .5001
+  }
+  
+  else if(abs(mean(x,na.rm=TRUE)) > 2) {
+    abs(x-y) <=.5001
+  }
+  else{
+    abs(x-y) <=.01
+  }
+  
+})
+
+
+
+names(num_comparison_2019)[sapply(num_comparison_2019,mean,na.rm=TRUE)<1]
+names(char_comparison_2019)[sapply(char_comparison_2019,mean,na.rm=TRUE)<1]
+
+
+
+
+PY2019_A_PUF_csv = read_csv("Z:\\finance\\PUF\\2019\\Full PUF\\data.cms.gov files\\2019A_Shared_Savings__Program__SSP___Accountable_Care__Organizations__ACO__PUF.csv")
+nrow(PY2019_A_PUF_csv)
+names(PY2019_A_PUF_csv) = names(PY2019_PUF)
+
+#equalize column classes
+
+class(PY2019_A_PUF_csv$Initial_Start_Date)
+class(PY2019_PUF$Initial_Start_Date)
+PY2019_A_PUF_csv$Initial_Start_Date = mdy(PY2019_A_PUF_csv$Initial_Start_Date)
+PY2019_A_PUF_csv$Current_Start_Date = mdy(PY2019_A_PUF_csv$Current_Start_Date)
+
+PY2019_A_PUF_csv$Sav_rate = as.numeric(gsub("%","",PY2019_A_PUF_csv$Sav_rate))
+PY2019_A_PUF_csv$MinSavPerc = as.numeric(gsub("%","",PY2019_A_PUF_csv$MinSavPerc))
+PY2019_A_PUF_csv$QualPerfShare = as.numeric(gsub("%","",PY2019_A_PUF_csv$QualPerfShare))
+PY2019_A_PUF_csv$FinalShareRate = as.numeric(gsub("%","",PY2019_A_PUF_csv$FinalShareRate))
+
+#PY2019_A_PUF_csv[,names(PY_2019_Provider_RIF)[2:ncol(PY_2019_Provider_RIF)]] = sapply()
+
+
+PY2019_A_PUF$Initial_Start_Date = as.Date(PY2019_A_PUF$Initial_Start_Date)
+PY2019_A_PUF$Current_Start_Date = as.Date(PY2019_A_PUF$Current_Start_Date)
+
+#convert quality vars to numeric
+PY2019_A_PUF_csv[,153:175] = sapply(PY2019_A_PUF_csv[,153:175], as.numeric)
+PY2019_A_PUF[,153:175] = sapply(PY2019_A_PUF[,153:175], as.numeric)
+
+#correct prior_sav_adj var
+PY2019_A_PUF_csv$Prior_Sav_Adj[is.na(PY2019_A_PUF_csv$Prior_Sav_Adj)] = '9999'
+PY2019_A_PUF$Prior_Sav_Adj[is.na(PY2019_A_PUF_csv$Prior_Sav_Adj)] = '9999'
+
+
+names(PY2019_A_PUF_csv)[sapply(PY2019_A_PUF_csv, class) != sapply(PY2019_A_PUF, class)]
+
+
+
+
+char_comparison_2019_A = map2_df(PY2019_A_PUF[,sapply(PY2019_A_PUF, class) %in% c('character','Date') ], PY2019_A_PUF_csv[,sapply(PY2019_A_PUF, class)  %in% c('character','Date')], function(x,y) {
+x==y
+  })
+
+num_comparison_2019_A = map2_df(PY2019_A_PUF[,sapply(PY2019_A_PUF, class) %in% c('integer','numeric')], PY2019_A_PUF_csv[,sapply(PY2019_A_PUF_csv, class) %in% c('integer','numeric')], function(x,y) {
+  if( abs(mean(x,na.rm=TRUE)) > 10000){
+    abs(x-y) <= .5001
+  }
+  
+  else if(abs(mean(x,na.rm=TRUE)) > 500){
+    abs(x-y) <= .5001
+  }
+  
+  else if(abs(mean(x,na.rm=TRUE)) > 2) {
+    abs(x-y) <=.5001
+  }
+  else{
+    abs(x-y) <=.01
+  }
+  
+})
+
+
+
+names(num_comparison_2019_A)[sapply(num_comparison_2019_A,mean,na.rm=TRUE)<1]
+names(char_comparison_2019_A)[sapply(char_comparison_2019_A,mean,na.rm=TRUE)<1]
+
+
+```

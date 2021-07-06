@@ -1,0 +1,115 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(readxl)
+
+```
+
+
+
+```{r Inputs}
+Batch.inventory = read_excel("Z:\\participant management\\TIN-NPI database\\Batch Inventory\\2021\\BatchInventory_PY_2021.xlsx", sheet = "ACO") %>% filter(Q1_Reports == 1) %>% 
+  select(ACO_ID, ACO_LBN_DBA, Track, Assignment_Type, Latest_Agreement_Start_Date, Agreement_Period, Benchmark_Methodology)
+names(Batch.inventory)
+
+Prosp.EXPU = read_excel("Y:\\data\\reports\\Summary combined report batch G6 2021 Q1 COVID\\prosp\\TI00.ACO.A181.QEXPU.P.COVIDG6.Y2021Q1.AALL.xlsx", skip = 2) %>% 
+  select(`ACO ID`,
+         `Benchmark Year 3 - ESRD Regional Expenditures`:`Benchmark Year 3 - Aged/Non-Dual Regional Expenditures`,
+         `Q1 - ESRD Regional Expenditures (12-Month)`:`Q1 - Aged/Non-Dual Regional Expenditures (12-Month)`,
+         `Q1 - ESRD National Weight`:`Q1 - Aged/Non-Dual National Weight`,
+         `Q1 - ESRD Regional Weight`:`Q1 - Aged/Non-Dual Regional Weight`,
+         `Total Person Years`:`Aged/Non-Dual Person Years`,
+         `Total Assigned Beneficiaries`,
+         `Mean Total Expenditures`) %>% 
+  mutate(across(`Total Person Years`:`Aged/Non-Dual Person Years`, function(x) x * 4))
+
+names(Prosp.EXPU) = stringr::str_replace_all(names(Prosp.EXPU),stringr::fixed(" (12-Month)"), "")
+
+Retro.EXPU = read_excel("Y:\\data\\reports\\Summary combined report batch G6 2021 Q1 COVID\\retro\\TI00.ACO.A181.QEXPU.R.COVIDG6.Y2021Q1.AALL.xlsx", skip = 2)%>% 
+  select(`ACO ID`,
+         `Benchmark Year 3 - ESRD Regional Expenditures`:`Benchmark Year 3 - Aged/Non-Dual Regional Expenditures`,
+         `Q1 - ESRD Regional Expenditures`:`Q1 - Aged/Non-Dual Regional Expenditures`,
+         `Q1 - ESRD National Weight`:`Q1 - Aged/Non-Dual National Weight`,
+         `Q1 - ESRD Regional Weight`:`Q1 - Aged/Non-Dual Regional Weight`,
+         `Total Person Years`:`Aged/Non-Dual Person Years`,
+         `Total Assigned Beneficiaries`,
+         `Mean Total Expenditures`)
+names(Retro.EXPU)
+
+EXPU = bind_rows(Prosp.EXPU, Retro.EXPU)
+
+HB.mng.rpt = read_excel("Z:\\finance\\historical benchmark\\Combined HB Management Reports\\PY 2021 HB Management Reports Draft.xlsx", skip = 4) %>% 
+  select(...4,
+         `ESRD...176`:`Age/Non-Dual...179`,
+         `ESRD...145`:`Age/Non-Dual...148`
+         )
+
+
+
+names(HB.mng.rpt) = c("ACO_ID","ESRD Regionally Adjusted Benchmark Expenditures", "Disabled Regionally Adjusted Benchmark Expenditures",
+                      "Aged/Dual Regionally Adjusted Benchmark Expenditures",
+                      "Aged/Non-Dual Regionally Adjusted Benchmark Expenditures",
+                      "ESRD Benchmark Expenditures Before Regional Adjustment",
+                      "Disabled Benchmark Expenditures Before Regional Adjustment",
+                      "Aged/Dual Benchmark Expenditures Before Regional Adjustment",
+                      "Aged/Non-Dual Benchmark Expenditures Before Regional Adjustment")
+
+HB.mng.rpt = HB.mng.rpt %>% 
+  mutate(`ESRD Regionally Adjusted Benchmark Expenditures` = ifelse(is.na(`ESRD Regionally Adjusted Benchmark Expenditures`),`ESRD Benchmark Expenditures Before Regional Adjustment`,
+                                                                    `ESRD Regionally Adjusted Benchmark Expenditures`),
+         `Disabled Regionally Adjusted Benchmark Expenditures` = ifelse(is.na(`Disabled Regionally Adjusted Benchmark Expenditures`),`Disabled Benchmark Expenditures Before Regional Adjustment` ,
+                                                                        `Disabled Regionally Adjusted Benchmark Expenditures`),
+         `Aged/Dual Regionally Adjusted Benchmark Expenditures` = ifelse(is.na(`Aged/Dual Regionally Adjusted Benchmark Expenditures`),`Aged/Dual Benchmark Expenditures Before Regional Adjustment`,
+                                                                         `Aged/Dual Regionally Adjusted Benchmark Expenditures`),
+         `Aged/Non-Dual Regionally Adjusted Benchmark Expenditures` = ifelse(is.na(`Aged/Non-Dual Regionally Adjusted Benchmark Expenditures`),
+                                                                             `Aged/Non-Dual Benchmark Expenditures Before Regional Adjustment`,
+                                                                             `Aged/Non-Dual Regionally Adjusted Benchmark Expenditures`)) %>% 
+  select(-c(`ESRD Benchmark Expenditures Before Regional Adjustment`:`Aged/Non-Dual Benchmark Expenditures Before Regional Adjustment`))
+
+
+
+
+```
+
+
+
+```{r Combine}
+
+
+Batch.inventory %>% left_join(EXPU, by = c ("ACO_ID" = "ACO ID")) %>% left_join(HB.mng.rpt) %>% openxlsx::write.xlsx("Z:\\finance\\report validation\\quarterly\\2021 Q1\\Prediction File\\Q1_data.xlsx")
+
+
+```
+```{r Create MSR/MLR Data}
+
+MSR.MLR = read_excel("Z:\\participant management\\TIN-NPI database\\Batch Inventory\\2021\\BatchInventory_PY_2021.xlsx", sheet = "ACO") %>% filter(Q1_Reports == 1) %>%   select(ACO_ID, MSR_MLR)
+names(MSR.MLR)
+MSR.MLR$MSR_MLR
+
+MSR.MLR = MSR.MLR%>% 
+  mutate(MSR_MLR = gsub("% MSR/MLR", "", MSR_MLR)) %>% 
+  mutate(MSR_MLR = case_when(MSR_MLR == "Symmetrical variable" ~"Variable",
+                             MSR_MLR == "Variable MSR" ~"Variable",
+                             MSR_MLR == "2.0" ~".02",
+                             MSR_MLR == "1.0" ~".01",
+                             MSR_MLR == "0.5" ~".005",
+                             MSR_MLR == "1.5" ~".015",
+                             MSR_MLR == "0.0" ~"0.0"))
+
+
+MSR.MLR %>% openxlsx::write.xlsx("Z:\\finance\\report validation\\quarterly\\2021 Q1\\Prediction File\\MSR_MLR.xlsx")
+
+unique(MSR.MLR$MSR_MLR)
+
+
+extra = MSR.MLR %>% filter(!(ACO_ID %in% Batch.inventory$ACO_ID))
+
+
+```
+

@@ -1,0 +1,100 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+rm(list = ls())
+library(dplyr)
+library(readxl)
+library(tidyr)
+library(stringr)
+library(readr)
+library(lubridate)
+
+```
+
+
+
+```{r Load data}
+
+qaAcoTin = as_tibble(haven::read_sas("Y:\\data\\jsciandra\\Prescreening\\2021\\G3\\batch_g3_tin_postdispo_20201009.sas7bdat")) %>%
+  select(ACO = ACO_ID, Renewal_Effective_Date = Renewal_Effective_Date) %>%
+  #doing this to drop all leading zeroes up front so everything merges nicely
+  mutate(Renewal_Effective_Date = as.character(Renewal_Effective_Date)) %>% 
+  filter(Renewal_Effective_Date %in% c('2019-07-01', '2020-01-01')) %>% 
+  group_by(ACO) %>% slice(1)
+
+PY19A_renewals = qaAcoTin %>% filter(Renewal_Effective_Date == '2019-07-01')
+PY20_renewals = qaAcoTin %>% filter(Renewal_Effective_Date == '2020-01-01')
+
+
+PY19A = read_excel("Z:\\participant management\\prescreening\\2019A Prescreening\\Batch E4\\Participation Options Report\\Participation_Options_Report_Round4.xlsx", sheet = 3) %>% filter(`ACO Participant TIN` == "Total/Average", `Benchmark- or Revenue-Based` == "Benchmark-based") %>% 
+  select(ACO = `ACO ID`, `Renewal Cycle RM Amount (C)` = `Initial Determined Repayment Mechanism Amount (L)`, existing_RM_at_renewal = `Existing Repayment Mechanism Amount (K)`) %>% 
+  filter(ACO %in%  PY19A_renewals$ACO)
+
+PY20 = read_excel("Z:\\participant management\\prescreening\\2020 Prescreening\\Batch F4\\Participation Options Report\\Participation Options Report PY2020 Preliminary Dispositions - Revised.xlsx", sheet = 3) %>% filter(`ACO Participant TIN` == "Total/Average", `Benchmark- or Revenue-Based` == "Benchmark-based", `ACO ID` != "A3235") %>% 
+  select(ACO = `ACO ID`, `Renewal Cycle RM Amount (C)` = `Initial Determined Repayment Mechanism Amount (L)`, existing_RM_at_renewal = `Existing Repayment Mechanism Amount (K)`) %>% 
+  filter(ACO %in%  PY20_renewals$ACO)
+
+### A3235 wasn't in F4
+A3235 = read_excel("Z:\\participant management\\prescreening\\2020 Prescreening\\Batch F3\\Participation Options Report\\Participation_Options_RFI-3_20191004.xlsx", sheet = 3)%>% filter(`ACO Participant TIN` == "Total/Average", `Benchmark- or Revenue-Based` == "Benchmark-based", `ACO ID` == "A3235") %>% 
+  select(ACO = `ACO ID`, `Renewal Cycle RM Amount (C)` = `Initial Determined Repayment Mechanism Amount (L)`, existing_RM_at_renewal = `Existing Repayment Mechanism Amount (K)`) 
+
+PY21 = read_excel("Z:\\participant management\\prescreening\\2021 Prescreening\\Batch G3\\Participation Options Report\\Participation_Options_PY2021_Final_Round_20201019.xlsx", sheet = 3) %>% filter(`ACO Participant TIN` == "Total/Average", `Benchmark- or Revenue-Based` == "Benchmark-based") %>% 
+  select(ACO = `ACO ID`, `PY 2021 RM Amount (D)` = `Initial Determined Repayment Mechanism Amount`, existing_RM_PY2021_POR = `Existing Repayment Mechanism Amount`) 
+
+sum(PY21$ACO == "A2084")
+
+
+
+
+
+sum(qaAcoTin$ACO == "A2084")
+
+
+repay <- read_excel("Z:\\finance\\participant revenue and expenditures\\2021 Cycle\\Inputs\\Final_High_Low\\Repayment Mechanism Tracker_consolidated_Bland_Update.xlsx") %>%
+  select(ACO = 1, REPAY_CURRENT) %>% group_by(ACO) %>% slice(1)
+
+Bland_Data = read_excel("Z:\\finance\\participant revenue and expenditures\\2021 Cycle\\One_Time_RM_Decrease_Bland).xlsx") %>% filter(`2nd Policy Option 1 - Upon Renewal, ACO elected to use an existing RM` == "Y") %>% 
+  select(ACO = `ACO ID`, `Existing RM Amount (B)` = `Initial Amount  (Do Not include US Bank Fees or Interest)`, `Available for PFS Decrease`)
+
+
+
+
+
+```
+
+```{r Analyze data}
+
+Renewal_data = inner_join(Bland_Data, bind_rows(PY19A,PY20, A3235)) %>% left_join(PY21)
+
+Renewal_data$existing_RM_check = Renewal_data$existing_RM_at_renewal == Renewal_data$`Existing RM Amount (B)`
+Renewal_data = Renewal_data %>% 
+  mutate(
+    check_1_at_21 = ifelse(`PY 2021 RM Amount (D)` < `Existing RM Amount (B)`, "Y", "N"),
+    check_2_at_renewal = ifelse(`Renewal Cycle RM Amount (C)` < `Existing RM Amount (B)`, "Y", "N"),
+    eligible_decrease = ifelse((check_1_at_21 == 'Y' & check_2_at_renewal == 'Y'),"Y", "N")
+  ) 
+
+Renewal_data_eligible = Renewal_data %>% filter(eligible_decrease == "Y") %>% 
+  select(`ACO ID (A)` = ACO, `Existing RM Amount (B)`, `Renewal Cycle RM Amount (C)`, `PY 2021 RM Amount (D)`, existing_RM_at_renewal, existing_RM_PY2021_POR)
+
+
+
+Bland_Data_eligible = Bland_Data %>% filter(`Available for PFS Decrease` == "Y")
+
+Bland_Data_eligible$ACO[!(Bland_Data_eligible$ACO %in% Renewal_data_eligible$`ACO ID (A)`)]
+openxlsx::write.xlsx(Renewal_data, "Z:\\finance\\participant revenue and expenditures\\2021 Cycle\\One Time RM Decrease\\ACOs_one_time_RM_decrease_draft_full_list.xlsx")
+
+openxlsx::write.xlsx(Renewal_data_eligible, "Z:\\finance\\participant revenue and expenditures\\2021 Cycle\\One Time RM Decrease\\ACOs_one_time_RM_decrease_draft.xlsx")
+
+
+Renewal_data_not_eligible = Renewal_data %>% filter(eligible_decrease == "N") %>% 
+  select(`ACO ID (A)` = ACO, `Existing RM Amount (B)`, `Renewal Cycle RM Amount (C)`, `PY 2021 RM Amount (D)`, existing_RM_at_renewal, existing_RM_PY2021_POR) %>% mutate(existing_por_less_initial = existing_RM_at_renewal < `Renewal Cycle RM Amount (C)`,
+                                                                                                                                                                          initial_higher_both_existing_por_bland = (existing_RM_at_renewal < `PY 2021 RM Amount (D)`) & (`Existing RM Amount (B)` < `PY 2021 RM Amount (D)`),
+                                                                                                                                                                          odd = (`Renewal Cycle RM Amount (C)` < existing_RM_at_renewal) & (`PY 2021 RM Amount (D)` >`Existing RM Amount (B)` ) & (existing_RM_at_renewal > `Existing RM Amount (B)`))
+
+
+```
+

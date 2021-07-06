@@ -1,0 +1,217 @@
+---
+title: "Validate 2020 TIN/CCN and ACO Revenues"
+output: html_document
+---
+
+
+
+### First we read in input datasets
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(haven)
+library(stringr)
+library(readr)
+
+
+
+
+ACO_TIN_2019 = read_sas("Y:\\data\\jsciandra\\Prescreening\\2019\\D7\\batch_d7_tin_20200320.sas7bdat") %>% select(ACO_ID,TIN) %>% mutate(PY19=1)
+#ACO_TIN_2019A = read_sas("Y:\\data\\jsciandra\\Prescreening\\2019A\\E7\\batch_e7_tin_20200319.sas7bdat") %>% select(ACO_ID,TIN) %>% mutate(PY19=1)
+
+
+
+ACO_TIN_CCN_2019 = read_sas("Y:\\data\\jcohen\\4_prescreening\\BatchD6\\PSL\\ccn_list_full_20190226.sas7bdat") %>% filter(use_record==1) %>% mutate(PY19 = 1)#%>% inner_join(ACO_TIN_2019, by=c("ACO_ID", "TIN"))  %>% select(ACO_ID,TIN,CCN) %>% mutate(PY19=1)
+#ACO_TIN_CCN_2019A = read_sas("Y:\\data\\jcohen\\4_prescreening\\BatchE5\\PSL\\ccn_list_full_20190604.sas7bdat") %>% filter(use_record==1) %>% inner_join(ACO_TIN_2019A, by=c("ACO_ID", "TIN")) %>% select(ACO_ID,TIN,CCN) %>% mutate(PY19=1)
+
+
+
+
+ACO_TIN_CCN_2020 = read_sas("Y:\\data\\jsciandra\\Batch_Inventory\\batchinventory_py20_ccn_20210507.sas7bdat") %>% filter(F9 == 1) %>% select(ACO_ID,TIN,CCN) %>% mutate(PY20=1) 
+ACO_TIN_2020 = read_sas("Y:\\data\\jsciandra\\Batch_Inventory\\batchinventory_py20_tin_20210507.sas7bdat") %>% filter(F9 == 1) %>% select(ACO_ID,TIN) %>% mutate(PY20=1) 
+
+
+```
+
+
+
+### Now we calculate which ACOs in PY 2019/PY 2019-A experienced a TIN change relative to 2018
+
+```{r Merge TIN lists, message=FALSE}
+
+TIN_summary_20 = full_join(ACO_TIN_2020, ACO_TIN_2019, by=c("ACO_ID", "TIN")) %>% 
+  mutate(only_19_TIN = ifelse(is.na(PY20),1,0),
+         only_20_TIN = ifelse(is.na(PY19),1,0)) %>% 
+  group_by(ACO_ID) %>% 
+  summarize(PY19_TIN_SUM = sum(PY19,na.rm = TRUE),
+            PY20_TIN_SUM = sum(PY20,na.rm = TRUE),
+            TIN_MATCH = PY19_TIN_SUM==n() & PY20_TIN_SUM == n())
+  
+TIN_Match_20 = TIN_summary_20 %>% filter(TIN_MATCH == TRUE)
+
+
+
+```
+
+
+### Now we calculate which ACOs in PY 2019/PY 2019-A experienced a CCN change relative to 2018. Then calculate which ACOs had parlist changes.
+
+
+```{r Merge CCN Lists, message=FALSE}
+CCN_summary_20 = full_join(ACO_TIN_CCN_2020, ACO_TIN_CCN_2019, by=c("ACO_ID", "TIN", "CCN")) %>% 
+  mutate(only_19_CCN = ifelse(is.na(PY20),1,0),
+         only_20_CCN = ifelse(is.na(PY19),1,0)) %>% 
+  group_by(ACO_ID) %>% 
+  summarize(PY19_CCN_SUM = sum(PY19,na.rm = TRUE),
+            PY20_CCN_SUM = sum(PY20,na.rm = TRUE),
+            CCN_MATCH = PY19_CCN_SUM==n() & PY20_CCN_SUM == n())
+CCN_Match_20 = CCN_summary_20 %>% filter(CCN_MATCH == TRUE)
+
+
+
+
+ACO_Match_20 = ACO_TIN_2020 %>% filter(ACO_ID %in% CCN_Match_20$ACO_ID,ACO_ID %in% TIN_Match_20$ACO_ID) %>% group_by(ACO_ID) %>% slice(1)
+
+
+```
+
+
+### Load in TIN/CCN revenue data and calculate correlations between 2019 and 2018 data
+
+
+```{r Load in TIN/CCN Revenues, message=FALSE}
+
+CCN_rev_20 = readxl::read_excel("Z:\\pgm output\\ACOV2-5627 2020 TIN and CCN Revenues\\TI00.MSSP.D4MZ.P7A20F9A.INST2.xlsx")%>% 
+    mutate(CCN = as.character(CCN),
+         CCN = str_pad(CCN, 6, side = c("left"), pad = "0"))
+TIN_rev_20 = readxl::read_excel("Z:\\pgm output\\ACOV2-5627 2020 TIN and CCN Revenues\\TI00.MSSP.D4MZ.P7A20F9A.PROF1.xlsx") %>% 
+    mutate(TIN = as.character(TIN),
+         TIN = str_pad(TIN, 9, side = c("left"), pad = "0"))
+
+
+CCN_rev_20_covid = readxl::read_excel("Z:\\pgm output\\ACOV2-5627 2020 TIN and CCN Revenues\\TI00.MSSP.D4MZ.P7A20F9B.INST2.xlsx")%>% 
+    mutate(CCN = as.character(CCN),
+         CCN = str_pad(CCN, 6, side = c("left"), pad = "0"))
+TIN_rev_20_covid = readxl::read_excel("Z:\\pgm output\\ACOV2-5627 2020 TIN and CCN Revenues\\TI00.MSSP.D4MZ.P7A20F9B.PROF1.xlsx") %>% 
+    mutate(TIN = as.character(TIN),
+         TIN = str_pad(TIN, 9, side = c("left"), pad = "0"))
+
+
+CCN_rev_19 = readxl::read_excel("Z:\\pgm output\\ACO-2648 TIN and CCN Revenues\\INST.xlsx")
+TIN_rev_19 = readxl::read_excel("Z:\\pgm output\\ACO-2648 TIN and CCN Revenues\\PROF.xlsx") %>% 
+    mutate(TIN = as.character(TIN),
+         TIN = str_pad(TIN, 9, side = c("left"), pad = "0"))
+
+
+
+
+
+
+
+CCN_joined = inner_join(CCN_rev_20, CCN_rev_19, by="CCN", suffix = c(".2020", ".2019"))
+cor(CCN_joined$CCN_CLM_REV.2020, CCN_joined$CCN_CLM_REV.2019)
+cor(CCN_joined$CCN_PBP_REV.2020, CCN_joined$CCN_PBP_REV.2019)
+cor(CCN_joined$CCN_TOT_REV.2020, CCN_joined$CCN_TOT_REV.2019)
+
+
+TIN_joined = inner_join(TIN_rev_20, TIN_rev_19, by="TIN", suffix = c(".2020", ".2019"))
+cor(TIN_joined$TIN_CLM_REV.2020, TIN_joined$TIN_CLM_REV.2019)
+cor(TIN_joined$TIN_PBP_REV.2020, TIN_joined$TIN_PBP_REV.2019)
+cor(TIN_joined$TIN_TOT_REV.2020, TIN_joined$TIN_TOT_REV.2019)
+
+
+
+CCN_joined_covid = inner_join(CCN_rev_20_covid, CCN_rev_19, by="CCN", suffix = c(".2020", ".2019"))
+cor(CCN_joined_covid$CCN_CLM_REV.2020, CCN_joined_covid$CCN_CLM_REV.2019)
+cor(CCN_joined_covid$CCN_PBP_REV.2020, CCN_joined_covid$CCN_PBP_REV.2019)
+cor(CCN_joined_covid$CCN_TOT_REV.2020, CCN_joined_covid$CCN_TOT_REV.2019)
+
+
+TIN_joined_covid = inner_join(TIN_rev_20_covid, TIN_rev_19, by="TIN", suffix = c(".2020", ".2019"))
+cor(TIN_joined_covid$TIN_CLM_REV.2020, TIN_joined_covid$TIN_CLM_REV.2019)
+cor(TIN_joined_covid$TIN_PBP_REV.2020, TIN_joined_covid$TIN_PBP_REV.2019)
+cor(TIN_joined_covid$TIN_TOT_REV.2020, TIN_joined_covid$TIN_TOT_REV.2019)
+
+
+
+
+```
+### Load in ACO Revenue data and compute correlatoins with 2018 for ACOs w/o parlist changes and calculate whether there are any differences with Kevin's calculations (double programming of ACO revenues)
+
+
+```{r Load in ACO Revenues, message=FALSE}
+
+ACO_Rev_19 = read_csv("Z:\\pgm output\\ACO-2649 (2019-D Batch ACO Revenues)\\REVACO19.csv") 
+ACO_Rev_20 = read_csv("Z:\\pgm output\\ACOV2-5659 2020-F Batch ACO Revenues\\P7C20F9A.REVACO20.YES_COVID.csv")%>% filter(ACO_ID %in% ACO_Match_20$ACO_ID)
+ACO_Rev_20_covid = read_csv("Z:\\pgm output\\ACOV2-5659 2020-F Batch ACO Revenues\\P7C20F9B.REVACO20.NO_COVID.csv")%>% filter(ACO_ID %in% ACO_Match_20$ACO_ID)
+
+#Compare 2020 ACO Revenues
+ACO_Rev_20 = ACO_Rev_20 %>% left_join(ACO_Rev_19, by="ACO_ID", suffix = c(".2020", ".2019"))
+cor(ACO_Rev_20$TOT_REV.2020, ACO_Rev_20$TOT_REV.2019)
+
+ACO_Rev_20_covid = ACO_Rev_20_covid %>% left_join(ACO_Rev_19, by="ACO_ID", suffix = c(".2020", ".2019"))
+cor(ACO_Rev_20_covid$TOT_REV.2020, ACO_Rev_20_covid$TOT_REV.2019)
+
+
+
+
+#recalculate 2020 ACO Revenues
+ACO_Rev_20 = read_csv("Z:\\pgm output\\ACOV2-5659 2020-F Batch ACO Revenues\\P7C20F9A.REVACO20.YES_COVID.csv")
+ACO_Rev_20_covid = read_csv("Z:\\pgm output\\ACOV2-5659 2020-F Batch ACO Revenues\\P7C20F9B.REVACO20.NO_COVID.csv")
+
+
+#here we add up TIN and CCN revenues for PY 2020 and compare with Kevin's values
+CCN_rev_20_agg = ACO_TIN_CCN_2020  %>%  left_join(CCN_rev_20, by="CCN") %>% group_by(ACO_ID, CCN) %>% slice(1) %>% group_by(ACO_ID) %>% summarize(TOT_Rev = sum(CCN_TOT_REV,na.rm=TRUE))
+
+TIN_rev_20_agg = ACO_TIN_2020  %>% left_join(TIN_rev_20, by="TIN") %>% group_by(ACO_ID, TIN) %>% slice(1) %>% group_by(ACO_ID) %>% summarize(TOT_Rev = sum(TIN_TOT_REV,na.rm=TRUE))
+
+Rev_20_agg = bind_rows(CCN_rev_20_agg, TIN_rev_20_agg) %>% group_by(ACO_ID) %>% 
+  summarize(TOT_Rev = sum(TOT_Rev)) %>% full_join(ACO_Rev_20, by="ACO_ID") %>% 
+  mutate(difference = abs(TOT_Rev - TOT_REV),
+         problem = ifelse(difference > .05,1,0),
+         Kevin_greater = TOT_REV > TOT_Rev)
+#test if there is a problem relative to Kevin's calcs
+mean(Rev_20_agg$problem)
+
+length(unique(ACO_TIN_2020$ACO_ID))
+
+
+
+#recalculate 2020 ACO Revenues, Covid
+
+#here we add up TIN and CCN revenues for PY 2020 and compare with Kevin's values
+CCN_rev_20_agg_covid = ACO_TIN_CCN_2020  %>%  left_join(CCN_rev_20_covid, by="CCN") %>% group_by(ACO_ID, CCN) %>% slice(1) %>% group_by(ACO_ID) %>% summarize(TOT_Rev = sum(CCN_TOT_REV,na.rm=TRUE))
+
+TIN_rev_20_agg_covid = ACO_TIN_2020  %>% left_join(TIN_rev_20_covid, by="TIN") %>% group_by(ACO_ID, TIN) %>% slice(1) %>% group_by(ACO_ID) %>% summarize(TOT_Rev = sum(TIN_TOT_REV,na.rm=TRUE))
+
+Rev_20_agg_covid = bind_rows(CCN_rev_20_agg_covid, TIN_rev_20_agg_covid) %>% group_by(ACO_ID) %>% 
+  summarize(TOT_Rev = sum(TOT_Rev)) %>% full_join(ACO_Rev_20_covid, by="ACO_ID") %>% 
+  mutate(difference = abs(TOT_Rev - TOT_REV),
+         problem = ifelse(difference > .05,1,0),
+         Kevin_greater = TOT_REV > TOT_Rev)
+#test if there is a problem relative to Kevin's calcs
+mean(Rev_20_agg_covid$problem)
+
+
+
+```
+
+### Check whether there are any CCNs in the ACO/TIN/CCN crosswalk for TINs that are not supposed to be in that crosswalk. 
+```{r Examine Kevin Situation, message=FALSE}
+mismatched_ccns = ACO_TIN_CCN_2019 %>% filter(!(TIN %in% ACO_TIN_2019$TIN)) 
+mismatched_ccns$ACO_ID %in% ACO_TIN_2019$ACO_ID
+
+mismatched_ccns_rev = CCN_rev_19 %>% filter(CCN %in% mismatched_ccns$CCN)
+
+
+mismatched_ccns_19A = ACO_TIN_CCN_2019A %>% filter(!(TIN %in% ACO_TIN_2019A$TIN)) 
+mismatched_ccns_19A$ACO_ID %in% ACO_TIN_2019A$ACO_ID
+
+mismatched_ccns_rev = CCN_rev_19 %>% filter(CCN %in% mismatched_ccns$CCN)
+
+
+
+```
+
+
+

@@ -1,0 +1,395 @@
+---
+title: "Prediction File Simulations, PY 2019"
+output: html_document
+fig_caption: yes
+---
+
+
+```{r setup, include=FALSE}
+rm(list = ls())
+library(dplyr)
+library(readxl)
+library(tidyr)
+library(stringr)
+library(readr)
+library(lubridate)
+library(gmodels)
+library(kableExtra)
+library(scales)
+library(glue)
+library(extrafont)
+loadfonts(device = "win", quiet = TRUE)
+library(ggplot2)
+
+
+## R Markdown
+
+
+```
+
+#### This file included workshop analysis of the accuracy of PY 2019 Q1 - PY 2019 Q4 quarterly prediction files. This is in preparation to deliver a memo to CMS which assesses how well the prediction files predict ACO performance categories and savings and losses (measured within this analysis as Total Benchmark Minus Assigned Beneficiary Expenditures).
+
+
+---
+
+```{r ,echo=FALSE,echo=FALSE, message=FALSE, fig.align='center'}
+Batch_inventory = read_excel("Z:\\participant management\\TIN-NPI database\\Batch Inventory\\2019\\BatchInventory_PY_2019_2019-A.xlsx", sheet = "ACO") %>% select(ACO_ID, PY19A_Benchmark_Methodology)
+
+
+Finperf = read_excel("Z:\\finance\\financial reconciliation\\fin rec management reports (all years)\\PY 2019-A Financial Reconciliation Management Report.xlsx", sheet = "PY 2019-A Fin Perf Table", skip=1) %>% 
+  select(`ACO ID`,
+         `PY 2019-A Risk Model`,
+         actual_bench_min_exp = `Total Benchmark Minus Assigned Beneficiary Expenditures (prorated) ($)`,
+         actual_category =`PY 2019-A Performance Category`,
+         `Current Agreement Start Date`,
+         `PY 2019-A Assignment Methodology`,
+         actual_exp = `Total Assigned Beneficiary Expenditures (prorated) ($)`,
+         actual_by_exp = `Total Benchmark Expenditures (prorated) ($)`,
+         actual_pys = `Total Person Years`,
+         actual_mean_bnch_exp = `Updated Benchmark`,
+         acutal_mean_assg_exp = `Per Capita Assigned Beneficiary Expenditures ($)`
+         
+) %>% 
+  rename(ACO_ID = `ACO ID`) %>% 
+  left_join(Batch_inventory)
+
+Finperf$actual_category[Finperf$actual_category == "Shared savings"] = "Shared Savings"
+Finperf$actual_category[Finperf$actual_category == "Negative outside corridor"] = "Negative outside Corridor"
+
+negative_outside_corridor_two_sided = Finperf %>% filter(actual_category == "Negative outside Corridor",`PY 2019-A Risk Model` == "Two-Sided") 
+
+
+Extract_funtion = function(path, sheet, Quarter){
+  read_excel(path, sheet=sheet, skip=3) %>% 
+  select(ACO_ID = `ACO ID`, 
+         `Predicted Performance Category`,
+         predicted_bench_min_exp = `Predicted Total Savings/Losses ($) (Predicted Total Benchmark Minus Predicted Total Assigned Beneficiary Expenditures)`, 
+         predicted_bnch_exp = `Predicted Total Benchmark Expenditures`, 
+         predicted_assg_exp = `Predicted Total Assigned Beneficiary Expenditures ($)`, 
+         predicted_perf_payment = `Predicted Performance Payment ($) (Shared Savings After Applying Sequestration and Cap, NOT Pro-Rated for 6-Month PY)`, 
+         predicted_losses = `Predicted Shared Losses Owed ($) (Shared Losses After Applying Cap, NOT pro-rated for ACOs in 6-month PY)`,
+         predicted_mean_bnch_exp = `Predicted Mean Updated Benchmark ($)`,
+         predicted_mean_assg_exp = `Predicted Total Assigned Beneficiary Expenditures ($)`,
+         predicted_pys = 52) %>% 
+  rename(prediction = `Predicted Performance Category`) %>% inner_join(Finperf,by="ACO_ID") %>% 
+  replace_na(list(actual_losses = 0))  %>% 
+  mutate(predicted_bench_min_exp = predicted_bench_min_exp * .5,
+         predicted_bnch_exp = predicted_bnch_exp * .5,
+         predicted_assg_exp = predicted_assg_exp * .5,
+         predicted_perf_payment = predicted_perf_payment * .5,
+         predicted_losses = predicted_losses * .5) %>% 
+  mutate(difference_bench_min_exp = (actual_bench_min_exp - predicted_bench_min_exp)/1E6,
+         Quarter = Quarter,
+         pred_cat_direction = ifelse(prediction %in% c("Shared Savings", "Positive w/in corridor"),"Positive","Negative"),
+         actual_cat_direction = ifelse(actual_category %in% c("Shared Savings", "Positive w/in corridor"),"Positive","Negative"))
+  
+}
+
+
+test = read_excel("Z:\\finance\\report validation\\quarterly\\2019 Q3\\Prediction File\\PY 2019-A\\Predicting ACO Performance Results_Q3PY2019A.xlsx", skip=3, sheet =  "2019 Q3 Pred Calc")
+
+
+Q3 = Extract_funtion("Z:\\finance\\report validation\\quarterly\\2019 Q3\\Prediction File\\PY 2019-A\\Predicting ACO Performance Results_Q3PY2019A.xlsx", "2019 Q3 Pred Calc", "Q3")
+Q4 = Extract_funtion("Z:\\finance\\report validation\\quarterly\\2019 Q4\\Prediction File\\PY 2019-A\\Predicting ACO Performance Results_Q4PY2019A.xlsx", "2019 Q4 Pred Calc", "Q4")
+
+assignment_simulation = Extract_funtion("Z:\\finance\\prediction file\\2019 simulation\\Predicting ACO Performance Results_Q4PY2019A_assignment_simulation.xlsx", "2019 Q4 Pred Calc", "Assg. Sim")
+exp_simulation = Extract_funtion("Z:\\finance\\prediction file\\2019 simulation\\Predicting ACO Performance Results_Q4PY2019A_Mean_Exp_sim.xlsx", "2019 Q4 Pred Calc", "Mean Exp. Sim")
+upd_bnch_simulation = Extract_funtion("Z:\\finance\\prediction file\\2019 simulation\\Predicting ACO Performance Results_Q4PY2019A_update_benchmark.xlsx", "2019 Q4 Pred Calc", "Updated Benchmark Sim")
+quality_simulation = Extract_funtion("Z:\\finance\\prediction file\\2019 simulation\\Predicting ACO Performance Results_Q4PY2019A_quality.xlsx", "2019 Q4 Pred Calc", "Quality Sim")
+annual_exp_simulation = Extract_funtion("Z:\\finance\\prediction file\\2019 simulation\\Predicting ACO Performance Results_Q4PY2019A_annual_expenditures.xlsx", "2019 Q4 Pred Calc", "Annual Exp. Sim")
+risk_simulation = Extract_funtion("Z:\\finance\\prediction file\\2019 simulation\\Predicting ACO Performance Results_Q4PY2019A_risk_adjustment.xlsx", "2019 Q4 Pred Calc", "Risk Sim")
+
+
+non_reconciled = read_excel("Z:\\finance\\report validation\\quarterly\\2019 Q4\\Prediction File\\PY 2019-A\\Predicting ACO Performance Results_Q4PY2019A.xlsx", sheet="2019 Q4 Pred Calc", skip=3) %>% filter(!(`ACO ID` %in% Finperf$ACO_ID)) %>% select(`ACO ID`)
+
+
+
+table(annual_exp_simulation$prediction,annual_exp_simulation$pred_cat_direction)
+table(annual_exp_simulation$actual_category,annual_exp_simulation$actual_cat_direction)
+
+
+```
+### Analyzing Accuracy of Quarterly Prediction Files
+#### Here we cross-tabulate the predicted and actual performance categories. The primary takeaways are that the accuracy of the Prediction Files increases with each quarter. Simulations to utilize correct assigned beneficiary counts, actual mean beneficiary expenditures, and actual quality scores do not improve accuracy. However, using actual updated benchmarks significantly improves accuracy. The best simulation utilizes updated mean beneficiary expenditures and actual updated benchmarks. 
+
+
+
+```{r Create quarterly accuracy graphs,echo=FALSE, message=FALSE, fig.align='center'}
+
+
+list_tables = list(Q3, Q4, assignment_simulation, quality_simulation, annual_exp_simulation, exp_simulation,risk_simulation,upd_bnch_simulation)
+
+
+
+simulation_table_func = function(dataset,...){
+  
+  table = dataset %>% group_by(actual_category,...) %>% mutate(column_total = n()) %>% group_by(actual_category, prediction,...) %>% mutate(count = n()) %>% slice(1) %>% mutate(percentage = paste0("(",scales::percent(count/column_total), ")")) %>%  ungroup()%>% mutate(table_count = paste(as.character(count),percentage ))  %>% select(actual_category, prediction,..., table_count) %>% arrange(desc(actual_category), desc(prediction))
+  
+  return(table)
+}
+
+
+summary_tables = lapply(list_tables, function(x) simulation_table_func(x))
+
+
+Output_table = summary_tables %>% purrr::reduce(full_join, by=c("actual_category", "prediction")) 
+names(Output_table) = c("actual_category","prediction","Q3","Q4","Assg. Sim","Quality Sim","Annual Exp. Sim","Mean Exp. Sim","Risk Simulation","Updated Benchmark Sim")
+
+join_table = bind_cols(
+                      as.data.frame(c(rep(unique(Output_table$actual_category)[1],4),
+                        rep(unique(Output_table$actual_category)[2],4),
+                        rep(unique(Output_table$actual_category)[3],4),
+                        rep(unique(Output_table$actual_category)[4],4))),
+                      as.data.frame(rep(c(unique(Output_table$actual_category)[1],
+                            unique(Output_table$actual_category)[2],
+                            unique(Output_table$actual_category)[3],
+                            unique(Output_table$actual_category)[4]),4))
+)
+names(join_table) = c("actual_category", "prediction")
+Output_table = left_join(join_table, Output_table)
+
+openxlsx::write.xlsx(Output_table, "Z:\\finance\\prediction file\\2019 simulation\\Extension\\2019_A_accuracy.xlsx")
+
+
+## Make a version of the table that combines positive and negative categories
+simulation_table_func_consolidate = function(dataset,...){
+  
+  table = dataset %>% group_by(actual_cat_direction,...) %>% mutate(column_total = n()) %>% group_by(actual_cat_direction, pred_cat_direction,...) %>% mutate(count = n()) %>% slice(1) %>% mutate(percentage = paste0("(",scales::percent(count/column_total), ")")) %>%  ungroup()%>% mutate(table_count = paste(as.character(count),percentage ))  %>% select(actual_cat_direction, pred_cat_direction,..., table_count) %>% arrange(desc(actual_cat_direction), desc(pred_cat_direction))
+  
+  return(table)
+}
+
+
+summary_tables = lapply(list_tables, function(x) simulation_table_func_consolidate(x))
+
+
+Output_table_consolidated = summary_tables %>% purrr::reduce(full_join, by=c("actual_cat_direction", "pred_cat_direction")) 
+names(Output_table_consolidated) = c("actual_direction","predicted_direction","Q3","Q4","Assg. Sim","Quality Sim","Annual Exp. Sim","Mean Exp. Sim","Risk Sim","Updated Benchmark Sim")
+
+openxlsx::write.xlsx(Output_table_consolidated, "Z:\\finance\\prediction file\\2019 simulation\\Extension\\2019_A_accuracy_consolidated.xlsx")
+
+
+
+##### Break out results by assignment category
+join_table_assg = bind_rows(Output_table[,c("actual_category","prediction")],
+                            Output_table[,c("actual_category","prediction")])
+join_table_assg$`PY 2019-A Assignment Methodology` =  c(rep(unique(Finperf$`PY 2019-A Assignment Methodology`)[1],16),
+                                                      rep(unique(Finperf$`PY 2019-A Assignment Methodology`)[2],16))
+
+
+summary_tables_assg = lapply(list_tables, function(x) simulation_table_func(x, `PY 2019-A Assignment Methodology`)) %>% purrr::reduce(full_join, by=c("PY 2019-A Assignment Methodology", "actual_category", "prediction"))  %>%  full_join(join_table_assg, by=c("actual_category","prediction", "PY 2019-A Assignment Methodology")) %>%  arrange(`PY 2019-A Assignment Methodology`, desc(actual_category), desc(prediction))
+
+
+
+names(summary_tables_assg) = c("actual_category", "prediction", "PY 2019-A Assignment Methodology","Q3","Q4","Assg. Sim","Quality Sim","Annual Exp. Sim","Mean Exp. Sim","Risk Simulation","Updated Benchmark Sim")
+openxlsx::write.xlsx(summary_tables_assg, "Z:\\finance\\prediction file\\2019 simulation\\Extension\\2019_A_assignment_accuracy.xlsx")
+
+
+
+
+
+
+```
+
+
+
+```{r Additional accuracy predictions}
+simulation_table_func_reverse = function(dataset,grouper_1, grouper_2,...){
+  
+  table = dataset %>% group_by({{grouper_1}},...) %>% mutate(column_total = n()) %>% group_by({{grouper_1}}, {{grouper_2}},...) %>% mutate(count = n()) %>% slice(1) %>% mutate(percentage = paste0("(",scales::percent(count/column_total), ")")) %>%  ungroup()%>% mutate(table_count = paste(as.character(count),percentage ))  %>% select({{grouper_1}}, {{grouper_2}},..., table_count) %>% arrange(desc({{grouper_1}}), desc({{grouper_2}}))
+  
+  return(table)
+}
+
+
+summary_tables_reverse = lapply(list_tables, function(x) simulation_table_func_reverse(x, prediction, actual_category))
+
+Output_table_reverse = summary_tables_reverse %>% purrr::reduce(full_join, by=c("actual_category", "prediction")) 
+names(Output_table_reverse) = c("prediction","actual_category","Q3","Q4","Assg. Sim","Quality Sim","Annual Exp. Sim","Mean Exp. Sim","Risk Sim","Updated Benchmark Sim")
+names(join_table) = c("prediction", "actual_category")
+Output_table_reverse = left_join(join_table, Output_table_reverse)
+Output_table_reverse = sapply(Output_table_reverse, function(x) ifelse(is.na(x), "0 (0%)",x))
+
+openxlsx::write.xlsx(Output_table_reverse, "Z:\\finance\\prediction file\\2019 simulation\\Extension\\2019_A_acuracy_reverse.xlsx")
+
+
+## Make a version of the table that combines positive and negative categories
+summary_tables_reverse = lapply(list_tables, function(x) simulation_table_func_reverse(x, pred_cat_direction, actual_cat_direction))
+
+
+Output_table_reverse_consolidated = summary_tables_reverse %>% purrr::reduce(full_join, by=c("pred_cat_direction", "actual_cat_direction")) 
+names(Output_table_reverse_consolidated) = c("predicted_direction","actual_direction","Q3","Q4","Assg. Sim","Quality Sim","Annual Exp. Sim","Mean Exp. Sim","Risk Sim","Updated Benchmark Sim")
+
+openxlsx::write.xlsx(Output_table_reverse_consolidated, "Z:\\finance\\prediction file\\2019 simulation\\Extension\\2019_A_accuracy_reverse_consolidated.xlsx")
+
+
+
+
+summary_tables_assg_invert = lapply(list_tables, function(x) simulation_table_func_reverse(x, prediction, actual_category, `PY 2019-A Assignment Methodology`)) %>% purrr::reduce(full_join, by=c("PY 2019-A Assignment Methodology", "actual_category", "prediction"))  %>%  full_join(join_table_assg, by=c("actual_category","prediction", "PY 2019-A Assignment Methodology")) %>%  arrange(`PY 2019-A Assignment Methodology`, desc(prediction), desc(actual_category))
+
+
+summary_tables_assg_invert = as.data.frame(sapply(summary_tables_assg_invert, function(x) ifelse(is.na(x), "0 (0%)",x)))
+
+names(summary_tables_assg_invert) = c("prediction", "actual_category", "PY 2019 Assignment Methodology","Q3","Q4","Assg. Sim","Quality Sim","Annual Exp. Sim","Mean Exp. Sim","Risk Sim","Updated Benchmark Sim")
+write_csv(summary_tables_assg_invert, "Z:\\finance\\prediction file\\2019 simulation\\Extension\\2019_A_assignment_accuracy_invert.csv")
+
+
+Overall_accuracy = function(dataset,...){
+  
+  table = dataset %>%  group_by(...) %>% 
+    mutate(total_acos = n()) %>% 
+    mutate(correct_prediction = ifelse(prediction==actual_category, 1,0),
+           predict_code = ifelse(prediction == "Shared Savings",4,
+                                 ifelse(prediction == "Positive w/in corridor",3,
+                                 ifelse(prediction == "Negative w/in corridor",2,1))),
+           actual_code = ifelse(actual_category == "Shared Savings",4,
+                                 ifelse(actual_category == "Positive w/in corridor",3,
+                                 ifelse(actual_category == "Negative w/in corridor",2,1))),           
+           underprediction = ifelse(predict_code<actual_code,1,0),
+           overprediction = ifelse(predict_code>actual_code,1,0)) %>% 
+    summarize(
+      correct_prediction = mean(correct_prediction),
+      overprediction = mean(overprediction),
+      underprediction = mean(underprediction),
+      count = n()
+    )
+             
+
+  
+  return(table)
+}
+
+
+Overall_accuracy_table = lapply(list_tables, function(x) Overall_accuracy(x)) 
+Overall_accuracy_table = do.call("rbind", Overall_accuracy_table)
+rownames(Overall_accuracy_table) = c("Q3","Q4","Assg. Sim","Quality Sim","Annual Exp. Sim","Mean Exp. Sim","Risk Sim","Updated Benchmark Sim")
+
+
+openxlsx::write.xlsx(Overall_accuracy_table, "Z:\\finance\\prediction file\\2019 simulation\\Extension\\2019_A_overall_accuracy.xlsx")
+
+
+
+
+```
+
+
+
+<br />
+<br />
+
+### How well do prediction files estimate aggregate savings/losses
+#### Here we produce a table and a graph of the actual minus predicted savings/losses (measured by benchmark expenditures minus assigned beneficiary expenditures). The primary takeaways are that the quarterly prediction files undercounted total savings in Q1 and Q2 and overpredicted savings in Q3 and Q4. Again, simulations utilizing acutal PY 2019 assigned beneficiaries, mean expenditures, and quality scores did little to improve accuracy in predicting total gross savings. Utilizing actual updated benchmarks leads to a significant increase in accuracy in total gross savings predictions. As in the case of predicting performance categories, the top performing simulation combines actual mean expenditures with actual updated benchmarks.
+
+
+
+```{r, echo=FALSE, message=FALSE, fig.align='center', fig.cap='Figure 1: Difference, Actual vs Predicted Benchmark Minus Expenditures', fig.topcaption=TRUE}
+cumulative = bind_rows(list_tables)
+cumulative$Quarter = factor(cumulative$Quarter, levels = c("Q3","Q4","Assg. Sim","Quality Sim","Annual Exp. Sim","Mean Exp. Sim","Risk Sim","Updated Benchmark Sim"))
+labels = str_wrap(levels(cumulative$Quarter), width=7)
+
+
+
+ggplot(cumulative, aes(x=Quarter, y=difference_bench_min_exp, fill = Quarter)) + 
+    geom_boxplot() + ylab("Difference, Actual vs Predicted\nGross Savings") + theme(legend.position="none") +scale_y_continuous(labels=dollar_format(prefix="$", suffix="M")) + xlab("")+  scale_x_discrete(labels = labels) +
+  theme(text=element_text(family="Calibri"), axis.text.y = element_text(size=16, colour = "black"),
+              axis.text.x = element_text(size=16, colour = "black"),
+              axis.title.y = element_text(size=16)) + ggsave("C:\\Users\\lhorvath\\Downloads\\gross savings.png", width=12, height = 6)
+
+```
+
+
+
+
+<br />
+
+
+<br />
+<br />
+
+
+#### We also produce a table of predicted total savings by quarter as a percentage of actual savings, which gives us another way of assessing how Q1 and Q2 prediction files undercounted savings but Q3 and Q4 files overcounted savings. This shows which prediction files (and simulations) undercount and overcount savings.
+
+
+```{r Total Program Savings, echo=FALSE, message=FALSE, fig.align='center'}
+
+cumulative  %>% group_by(Quarter) %>% 
+  summarise(`Total Predicted Benchmark - Expenditures ($M)` = sum(predicted_bench_min_exp)/1E6,
+            `Total Actual Benchmark - Expenditures` = sum(actual_bench_min_exp)/1E6,
+            `Predicted Benchmark - Expenditures as % of Actual` = scales::percent(`Total Predicted Benchmark - Expenditures ($M)` / `Total Actual Benchmark - Expenditures`, accuracy = .01),
+            `Actual Benchmark Expenditures ($M)` = sum(actual_by_exp)/1E6,
+            `Predicted Benchmark Expenditures ($M)` = sum(predicted_bnch_exp)/1E6,
+            `Predicted Benchmark Expenditures as % of Actual` = scales::percent(`Predicted Benchmark Expenditures ($M)` /  `Actual Benchmark Expenditures ($M)`, accuracy = .01),
+            `Actual Assigned Expenditures ($M)` = sum(actual_exp)/1E6,
+            `Predicted Assigned Expenditures ($M)` = sum(predicted_assg_exp)/1E6,
+            `Predicted Assigned Expenditures as % of Actual` = scales::percent(`Predicted Assigned Expenditures ($M)` /  `Actual Assigned Expenditures ($M)`, accuracy = .01),
+            `Predicted PYs as a % of Actual` = scales::percent(sum(predicted_pys) / sum(actual_pys), accuracy = .01)
+            ) %>% 
+  mutate(`Total Predicted Benchmark - Expenditures ($M)` = comma_format()(`Total Predicted Benchmark - Expenditures ($M)`)) %>% 
+  openxlsx::write.xlsx("Z:\\finance\\prediction file\\2019 simulation\\Extension\\2019_A_gross_savings.xlsx")
+
+
+
+
+##### Break out results by assignment category & year
+cumulative  %>% group_by(Quarter, `PY 2019-A Assignment Methodology`) %>% 
+  summarise(`Total Predicted Benchmark - Expenditures ($M)` = sum(predicted_bench_min_exp)/1E6,
+            `Total Actual Benchmark - Expenditures` = sum(actual_bench_min_exp)/1E6,
+            `Predicted Benchmark - Expenditures as % of Actual` = scales::percent(`Total Predicted Benchmark - Expenditures ($M)` / `Total Actual Benchmark - Expenditures`, accuracy = .01),
+            `Actual Benchmark Expenditures ($M)` = sum(actual_by_exp)/1E6,
+            `Predicted Benchmark Expenditures ($M)` = sum(predicted_bnch_exp)/1E6,
+            `Predicted Benchmark Expenditures as % of Actual` = scales::percent(`Predicted Benchmark Expenditures ($M)` /  `Actual Benchmark Expenditures ($M)`, accuracy = .01),
+            `Actual Assigned Expenditures ($M)` = sum(actual_exp)/1E6,
+            `Predicted Assigned Expenditures ($M)` = sum(predicted_assg_exp)/1E6,
+            `Predicted Assigned Expenditures as % of Actual` = scales::percent(`Predicted Assigned Expenditures ($M)` /  `Actual Assigned Expenditures ($M)`, accuracy = .01),
+            `Predicted PYs as a % of Actual` = scales::percent(sum(predicted_pys) / sum(actual_pys), accuracy = .01)
+            ) %>% 
+  mutate(`Total Predicted Benchmark - Expenditures ($M)` = comma_format()(`Total Predicted Benchmark - Expenditures ($M)`)) %>% arrange(`PY 2019-A Assignment Methodology`, Quarter) %>% 
+  openxlsx::write.xlsx("Z:\\finance\\prediction file\\2019 simulation\\Extension\\2019_A_gross_savings_assignment.xlsx")
+
+
+cumulative  %>% group_by(Quarter, `Current Agreement Start Date`) %>% 
+  summarise(`Total Predicted Benchmark - Expenditures ($M)` = sum(predicted_bench_min_exp)/1E6,
+            `Total Actual Benchmark - Expenditures` = sum(actual_bench_min_exp)/1E6,
+            `Predicted Benchmark - Expenditures as % of Actual` = scales::percent(`Total Predicted Benchmark - Expenditures ($M)` / `Total Actual Benchmark - Expenditures`, accuracy = .01),
+            `Actual Benchmark Expenditures ($M)` = sum(actual_by_exp)/1E6,
+            `Predicted Benchmark Expenditures ($M)` = sum(predicted_bnch_exp)/1E6,
+            `Predicted Benchmark Expenditures as % of Actual` = scales::percent(`Predicted Benchmark Expenditures ($M)` /  `Actual Benchmark Expenditures ($M)`, accuracy = .01),
+            `Actual Assigned Expenditures ($M)` = sum(actual_exp)/1E6,
+            `Predicted Assigned Expenditures ($M)` = sum(predicted_assg_exp)/1E6,
+            `Predicted Assigned Expenditures as % of Actual` = scales::percent(`Predicted Assigned Expenditures ($M)` /  `Actual Assigned Expenditures ($M)`, accuracy = .01),
+            `Predicted PYs as a % of Actual` = scales::percent(sum(predicted_pys) / sum(actual_pys), accuracy = .01)
+            ) %>% 
+  mutate(`Total Predicted Benchmark - Expenditures ($M)` = comma_format()(`Total Predicted Benchmark - Expenditures ($M)`)) %>% arrange(`Current Agreement Start Date`, Quarter) %>% 
+  openxlsx::write.xlsx("Z:\\finance\\prediction file\\2019 simulation\\Extension\\2019_A_gross_savings_year.xlsx")
+
+
+
+
+
+```
+
+<br />
+<br />
+
+#### Finally, we produce a table that displays calculation of total savings to Medicare (ignoring advanced payment). The actual value for PY 2019 was 832.5$M. Again, the most accurate simulation includes actual updated benchmarks and actual mean beneficiary expenditures.  
+
+
+
+```{r Calculate predicted savings to Medicare,echo=FALSE, message=FALSE, fig.align='center'}
+
+cumulative %>% 
+  ungroup() %>% 
+  group_by(Quarter) %>% 
+  summarize(`Total Benchmark Expenditures ($M, All ACOs)` = sum(predicted_bnch_exp) ,
+            `Total Assigned Beneficiary Expenditures ($M, All ACOs)` = sum(predicted_assg_exp) ,
+            `Total Program Savings ($M, All ACOs)` = `Total Benchmark Expenditures ($M, All ACOs)` - `Total Assigned Beneficiary Expenditures ($M, All ACOs)`,
+            `Gross Savings ($M) Generated by ACOs with Savings Outside Minimum Savings Rate` = sum(predicted_bench_min_exp[prediction == "Shared Savings"]) ,
+            `Total Performance ($M) Payments to ACOs with Savings Outside Minimum Savings Rate` = sum(predicted_perf_payment) ,
+            `Total Losses ($M) Owed by Risk-based ACOs with Losses Outside Minimum Loss Rate` = sum(predicted_losses) * (-1),
+            `Total Net Savings (Outlays) to Medicare ($M)` = `Total Program Savings ($M, All ACOs)` - `Total Performance ($M) Payments to ACOs with Savings Outside Minimum Savings Rate` + `Total Losses ($M) Owed by Risk-based ACOs with Losses Outside Minimum Loss Rate`) %>% pivot_longer(!Quarter, names_to = " ") %>% mutate(value = comma_format()(value/1E6)) %>%  pivot_wider(id_cols = ` `, names_from = Quarter, values_from = value) %>% 
+    openxlsx::write.xlsx("Z:\\finance\\prediction file\\2019 simulation\\Extension\\2019_A_net_Medicare_savings.xlsx")
+
+
+
+```
+

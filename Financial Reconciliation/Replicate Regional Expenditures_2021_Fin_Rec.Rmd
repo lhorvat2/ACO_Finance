@@ -1,0 +1,236 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+
+
+```{r Input data}
+library(readr)
+library(dplyr)
+library(readxl)
+library(stringr)
+library(rvest)
+rm(list = ls())
+
+#identify year
+
+
+county_rate_book = read_csv("Y:\\data\\ibugarinovic\\MSSP PY 2020 Reconciliation groups 1-10\\RF W jobs Exclude Covid Episode months\\H70205CW\\H70205CW.CNT20.CSV")
+county_rate_book[,7:ncol(county_rate_book)] = sapply(county_rate_book[,7:ncol(county_rate_book)], as.numeric)
+
+county_assigned = read_csv("Z:\\pgm output\\ACOV2-5661 2020 Regional Expenditures\\TI00.MSSP.GX9V.H820F9W.ACO.PSNYRS20.CSV")       
+county_assigned = county_assigned[1:(nrow(county_assigned) -1), ]
+
+
+
+
+```
+
+```{r Step 3}
+names(county_rate_book)
+county_rate_book$state_county = paste0(str_pad(county_rate_book$STATE_ID, 2, side = c("left"), pad = "0"),
+                                       str_pad(county_rate_book$COUNTY_ID, 3, side = c("left"), pad = "0"))
+
+
+
+
+```
+
+
+```{r Step 4}
+county_rate_book = county_rate_book %>% 
+  mutate(Risk_Adj_Per_Capita_Exp_ESRD = Per_Capita_Exp_ESRD / Avg_Risk_Score_ESRD,
+         Risk_Adj_Per_Capita_Exp_DIS = Per_Capita_Exp_DIS / Avg_Risk_Score_DIS,
+         Risk_Adj_Per_Capita_Exp_AGDU = Per_Capita_Exp_AGDU / Avg_Risk_Score_AGDU,
+         Risk_Adj_Per_Capita_Exp_AGND = Per_Capita_Exp_AGND / Avg_Risk_Score_AGND)
+
+
+```
+
+
+```{r Step 5}
+# convert to numeric
+county_assigned[,c("ACO_Psn_Yrs_ESRD","ACO_Psn_Yrs_DIS","ACO_Psn_Yrs_AGND", "ACO_Psn_Yrs_AGDU", "ACO_Tot_AB")] = sapply(county_assigned[,c("ACO_Psn_Yrs_ESRD","ACO_Psn_Yrs_DIS","ACO_Psn_Yrs_AGND", "ACO_Psn_Yrs_AGDU", "ACO_Tot_AB")], as.numeric)
+
+
+```
+
+
+```{r Step 6}
+
+county_assigned = left_join(county_assigned, county_rate_book %>% select(state_county, Person_Years_ESRD, Person_Years_AGND, Person_Years_AGDU, Person_Years_DIS), by=c("STATE_CNTY" = "state_county"))
+
+```
+
+
+```{r Step 7}
+county_assigned = county_assigned %>% 
+  mutate(
+    Adjusted_ACO_Psn_Yrs_ESRD = if_else(Person_Years_ESRD == 0 | is.na(Person_Years_ESRD),0,ACO_Psn_Yrs_ESRD),
+    Adjusted_ACO_Psn_Yrs_AGND = if_else(Person_Years_AGND == 0 | is.na(Person_Years_AGND),0,ACO_Psn_Yrs_AGND),
+    Adjusted_ACO_Psn_Yrs_AGDU = if_else(Person_Years_AGDU == 0 | is.na(Person_Years_AGDU),0,ACO_Psn_Yrs_AGDU),
+    Adjusted_ACO_Psn_Yrs_DIS = if_else(Person_Years_DIS == 0 | is.na(Person_Years_DIS),0,ACO_Psn_Yrs_DIS)
+        )
+
+
+```
+
+
+```{r Step 8}
+county_assigned = county_assigned %>% 
+  left_join(county_rate_book %>% select(state_county, Risk_Adj_Per_Capita_Exp_ESRD, Risk_Adj_Per_Capita_Exp_DIS,  Risk_Adj_Per_Capita_Exp_AGDU, Risk_Adj_Per_Capita_Exp_AGND), by=c("STATE_CNTY" = "state_county")
+    
+  )
+
+```
+
+
+```{r Step 9}
+county_assigned = county_assigned %>% 
+  mutate(
+    Wtd_Risk_Adj_Exp_ESRD = Adjusted_ACO_Psn_Yrs_ESRD * Risk_Adj_Per_Capita_Exp_ESRD,
+    Wtd_Risk_Adj_Exp_DIS = Adjusted_ACO_Psn_Yrs_DIS * Risk_Adj_Per_Capita_Exp_DIS,
+    Wtd_Risk_Adj_Exp_AGDU = Adjusted_ACO_Psn_Yrs_AGDU * Risk_Adj_Per_Capita_Exp_AGDU,
+    Wtd_Risk_Adj_Exp_AGND = Adjusted_ACO_Psn_Yrs_AGND * Risk_Adj_Per_Capita_Exp_AGND
+    
+  )
+
+
+```
+
+```{r Step 10}
+county_assigned = county_assigned %>% 
+  left_join(county_rate_book %>% select(state_county, Per_Capita_Exp_ESRD, Per_Capita_Exp_DIS, Per_Capita_Exp_AGDU, Per_Capita_Exp_AGND), by=c("STATE_CNTY" = "state_county"))
+
+ 
+
+
+```
+
+
+```{r Step 11}
+county_assigned = county_assigned %>% 
+  mutate(
+    Wtd_Non_Risk_Adj_Exp_ESRD = Adjusted_ACO_Psn_Yrs_ESRD * Per_Capita_Exp_ESRD,
+    Wtd_Non_Risk_Adj_Exp_DIS = Adjusted_ACO_Psn_Yrs_DIS * Per_Capita_Exp_DIS,
+    Wtd_Non_Risk_Adj_Exp_AGDU = Adjusted_ACO_Psn_Yrs_AGDU * Per_Capita_Exp_AGDU,
+    Wtd_Non_Risk_Adj_Exp_AGND = Adjusted_ACO_Psn_Yrs_AGND * Per_Capita_Exp_AGND,
+    Market_Share_ESRD = if_else(Adjusted_ACO_Psn_Yrs_ESRD / Person_Years_ESRD >1,1,Adjusted_ACO_Psn_Yrs_ESRD / Person_Years_ESRD),
+    Market_Share_ESRD = if_else(is.na(Market_Share_ESRD),0,Market_Share_ESRD),
+    Market_Share_DIS = if_else(Adjusted_ACO_Psn_Yrs_DIS / Person_Years_DIS >1,1,Adjusted_ACO_Psn_Yrs_DIS / Person_Years_DIS),
+    Market_Share_DIS = if_else(is.na(Market_Share_DIS),0,Market_Share_DIS),
+    Market_Share_AGDU = if_else(Adjusted_ACO_Psn_Yrs_AGDU / Person_Years_AGDU >1,1,Adjusted_ACO_Psn_Yrs_AGDU / Person_Years_AGDU),
+    Market_Share_AGDU = if_else(is.na(Market_Share_AGDU),0,Market_Share_AGDU),
+    Market_Share_AGND = if_else(Adjusted_ACO_Psn_Yrs_AGND / Person_Years_AGND >1,1,Adjusted_ACO_Psn_Yrs_AGND / Person_Years_AGND),
+    Market_Share_AGND = if_else(is.na(Market_Share_AGND),0,Market_Share_AGND),
+    
+    Wtd_Market_Share_ESRD = Market_Share_ESRD * Adjusted_ACO_Psn_Yrs_ESRD,
+    Wtd_Market_Share_DIS = Market_Share_DIS * Adjusted_ACO_Psn_Yrs_DIS,
+    Wtd_Market_Share_AGDU = Market_Share_AGDU * Adjusted_ACO_Psn_Yrs_AGDU,
+    Wtd_Market_Share_AGND = Market_Share_AGND * Adjusted_ACO_Psn_Yrs_AGND
+    
+  )
+
+
+```
+
+
+```{r Final Calculations}
+Final_Calcs = county_assigned %>%
+  group_by(ACOID) %>% 
+  summarise(
+    Reg_Risk_Adj_Exp_ESRD = sum(Wtd_Risk_Adj_Exp_ESRD, na.rm=TRUE) / sum(Adjusted_ACO_Psn_Yrs_ESRD, na.rm=TRUE),
+    Reg_Risk_Adj_Exp_DIS = sum(Wtd_Risk_Adj_Exp_DIS, na.rm=TRUE) / sum(Adjusted_ACO_Psn_Yrs_DIS, na.rm=TRUE),
+    Reg_Risk_Adj_Exp_AGDU = sum(Wtd_Risk_Adj_Exp_AGDU, na.rm=TRUE) / sum(Adjusted_ACO_Psn_Yrs_AGDU, na.rm=TRUE),
+    Reg_Risk_Adj_Exp_AGND = sum(Wtd_Risk_Adj_Exp_AGND, na.rm=TRUE) / sum(Adjusted_ACO_Psn_Yrs_AGND, na.rm=TRUE),
+    
+    Non_Reg_Risk_Adj_Exp_ESRD = sum(Wtd_Non_Risk_Adj_Exp_ESRD, na.rm=TRUE) / sum(Adjusted_ACO_Psn_Yrs_ESRD, na.rm=TRUE),
+    Non_Reg_Risk_Adj_Exp_DIS = sum(Wtd_Non_Risk_Adj_Exp_DIS, na.rm=TRUE) / sum(Adjusted_ACO_Psn_Yrs_DIS, na.rm=TRUE),
+    Non_Reg_Risk_Adj_Exp_AGDU = sum(Wtd_Non_Risk_Adj_Exp_AGDU, na.rm=TRUE) / sum(Adjusted_ACO_Psn_Yrs_AGDU, na.rm=TRUE),
+    Non_Reg_Risk_Adj_Exp_AGND = sum(Wtd_Non_Risk_Adj_Exp_AGND, na.rm=TRUE) / sum(Adjusted_ACO_Psn_Yrs_AGND, na.rm=TRUE),    
+    
+    Reg_Market_Share_ESRD = sum(Wtd_Market_Share_ESRD, na.rm=TRUE) / sum(Adjusted_ACO_Psn_Yrs_ESRD, na.rm=TRUE),
+    Reg_Market_Share_DIS = sum(Wtd_Market_Share_DIS, na.rm=TRUE) / sum(Adjusted_ACO_Psn_Yrs_DIS, na.rm=TRUE),
+    Reg_Market_Share_AGDU = sum(Wtd_Market_Share_AGDU, na.rm=TRUE) / sum(Adjusted_ACO_Psn_Yrs_AGDU, na.rm=TRUE),
+    Reg_Market_Share_AGND = sum(Wtd_Market_Share_AGND, na.rm=TRUE) / sum(Adjusted_ACO_Psn_Yrs_AGND, na.rm=TRUE)   
+    
+  )
+
+
+
+```
+
+
+```{r Compare with Attila's Output}
+Attila = read_csv('Z:\\pgm output\\ACOV2-5661 2020 Regional Expenditures\\TI00.MSSP.GX9V.H820F9W.ACO.REGEXP20.CSV')
+Attila = Attila[1:(nrow(Attila)-1),]
+Attila[, 2:ncol(Attila)] = sapply(Attila[, 2:ncol(Attila)], as.numeric)
+
+test = Final_Calcs[!(Final_Calcs$ACOID %in% Attila$ACOID), ]
+test_2 = Attila[!(Attila$ACOID %in% Final_Calcs$ACOID), ]
+
+names(Attila) = gsub("20", "", names(Attila))
+
+check_data = inner_join(Final_Calcs, Attila, by=c("ACOID" = "ACOID"))
+names(check_data)
+library(quantmod)
+
+check_data = check_data %>% 
+  mutate(
+    check_Reg_Risk_Adj_Exp_ESRD = abs(Delt(Reg_Risk_Adj_Exp_ESRD, CY_RegExpend_ESRD)) <.0001,
+    diff_Reg_Risk_Adj_Exp_ESRD = abs(Delt(Reg_Risk_Adj_Exp_ESRD, CY_RegExpend_ESRD)),
+    check_Reg_Risk_Adj_Exp_DIS = abs(Delt(Reg_Risk_Adj_Exp_DIS, CY_RegExpend_DIS)) <.0001,
+    check_Reg_Risk_Adj_Exp_AGDU = abs(Delt(Reg_Risk_Adj_Exp_AGDU, CY_RegExpend_AGDU)) <.0001,
+    check_Reg_Risk_Adj_Exp_AGND = abs(Delt(Reg_Risk_Adj_Exp_AGND, CY_RegExpend_AGND)) <.0001,
+    
+    check_Non_Reg_Risk_Adj_Exp_ESRD = abs(Delt(Non_Reg_Risk_Adj_Exp_ESRD, CY_NRAdj_RegExpend_ESRD)) <.0001,
+    check_Non_Reg_Risk_Adj_Exp_DIS = abs(Delt(Non_Reg_Risk_Adj_Exp_DIS, CY_NRAdj_RegExpend_DIS)) <.0001,
+    check_Non_Reg_Risk_Adj_Exp_AGDU = abs(Delt(Non_Reg_Risk_Adj_Exp_AGDU, CY_NRAdj_RegExpend_AGDU)) <.0001,
+    check_Non_Reg_Risk_Adj_Exp_AGND = abs(Delt(Non_Reg_Risk_Adj_Exp_AGND, CY_NRAdj_RegExpend_AGND)) <.0001,
+    
+    check_Reg_Market_Share_ESRD = abs(Delt(Reg_Market_Share_ESRD, CY_Reg_Market_Share_ESRD)) <.001,
+    diff_Reg_Market_Share_ESRD = abs(Delt(Reg_Market_Share_ESRD, CY_Reg_Market_Share_ESRD)),
+    check_Reg_Market_Share_DIS = abs(Delt(Reg_Market_Share_DIS, CY_Reg_Market_Share_DIS)) <.0001,
+    check_Reg_Market_Share_AGDU = abs(Delt(Reg_Market_Share_AGDU, CY_Reg_Market_Share_AGDU)) <.0001,
+    check_Reg_Market_Share_AGND = abs(Delt(Reg_Market_Share_AGND, CY_Reg_Market_Share_AGND)) <.0001
+    
+
+  )
+
+check_data %>% select(contains("check")) %>% 
+  summarise_all(.funs=~(mean(.,na.rm=TRUE)))
+
+
+
+
+```
+
+```{r Compare with version including covid episodes}
+Attila_include_covid = read_csv("Z:\\pgm output\\ACOV2-5865 2020 Regional Expenditures (incl COVID)\\TI00.MSSP.GX9V.H820F9Y.ACO.REGEXP20.CSV")
+
+Attila_include_covid = Attila_include_covid[1:(nrow(Attila_include_covid)-1),]
+Attila_include_covid[, 2:ncol(Attila_include_covid)] = sapply(Attila_include_covid[, 2:ncol(Attila_include_covid)], as.numeric)
+names(Attila_include_covid) = gsub("20", "", names(Attila_include_covid))
+
+
+compare_reg_exp = Attila %>% left_join(Attila_include_covid, by = "ACOID", suffix = c("_exclude","_include"))
+purrr::map2(Attila[,2:ncol(Attila)], Attila_include_covid[,2:ncol(Attila)], cor)
+compare_result = function(exclude, include){
+  compare = exclude < include
+  mean(compare)
+  
+  
+}
+
+purrr::map2(Attila[,2:ncol(Attila)], Attila_include_covid[,2:ncol(Attila)], compare_result)
+
+cor()
+names(compare_reg_exp)
+compare_reg_exp %>% mutate(
+  
+)
+
+```
+

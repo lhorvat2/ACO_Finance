@@ -1,0 +1,341 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+library(tidyr)
+library(purrr)
+library(readxl)
+library(readr)
+library(ggplot2)
+library(extrafont)
+loadfonts(device = "win")
+```
+
+
+
+```{r Read in Data}
+Parlist_lookup = read_excel("Z:\\finance\\historical benchmark\\2021\\Par List Change ACOs\\Historical_Benchmark_ACO_PY21.xlsx") %>% select(ACOID = ACO_ID, Assignment_Type_Change, Any_Change, Any_Addition, Any_Deletion, Assignment_Type_PY2020, Assignment_Type_PY2021) %>% 
+  mutate(Parlist_Or_Assignment = Any_Change == 1 | Assignment_Type_Change ==1,
+         Parlist_only = Any_Change == 1 & Assignment_Type_Change == 0,
+         Additions_only = Parlist_only == TRUE & Any_Addition == 1 & Any_Deletion == 0,
+         Drops_only = Parlist_only == TRUE & Any_Addition == 0 & Any_Deletion == 1,
+         Additions_and_drops = Parlist_only == TRUE & Any_Addition == 1 & Any_Deletion == 1,
+         Assignment_Change_Only = Any_Change == 0 & Assignment_Type_Change ==1,
+         Prosp_to_retro = Assignment_Change_Only == TRUE & Assignment_Type_PY2021=="Retrospective",
+         Retro_to_prosp = Assignment_Change_Only == TRUE & Assignment_Type_PY2021!="Retrospective",
+         Parlist_and_assignment_change = Any_Change == 1 & Assignment_Type_Change ==1,
+         Additions_only_both = Parlist_and_assignment_change == TRUE & Any_Addition == 1 & Any_Deletion == 0,
+         Drops_only_both = Parlist_and_assignment_change == TRUE & Any_Addition == 0 & Any_Deletion == 1,
+         Additions_and_drops_both = Parlist_and_assignment_change == TRUE & Any_Addition == 1 & Any_Deletion == 1,
+         No_Change = Parlist_Or_Assignment == FALSE)
+
+
+Batch_Inventory = read_excel("Z:\\participant management\\TIN-NPI database\\Batch Inventory\\2021\\BatchInventory_PY_2021.xlsx", sheet = "ACO")
+Previous_Benchmark = read_excel("Z:\\finance\\historical benchmark\\Combined HB Management Reports\\PY 2020 HB Management Report Final.xlsx", skip = 2) %>% select(ACOID = `ACO ID`, `Assignment Methodology`, prev_reg_bnch = `Historical Benchmark (Regionally Adjusted, If Applicable)`, prior_BY3_PYs = `...16`)
+Previous_Benchmark[,2:ncol(Previous_Benchmark)] = sapply(Previous_Benchmark[,2:ncol(Previous_Benchmark)], as.numeric)
+
+
+
+D = Batch_Inventory %>% filter(Benchmark_Year_Group == "D")
+E = Batch_Inventory %>% filter(Benchmark_Year_Group == "E")
+F_ = Batch_Inventory %>% filter(Benchmark_Year_Group == "F")
+
+
+variable_list_Attila = c('ACOID', 'regionally_adjsted_applicable', 'regional_adjustment', 'Reg_Adj_HB','HISTORICAL_BENCHMARK','Person_Years_TOTAL_BY3',
+                                                                  'Per_Capita_Exp_ESRD_BY1', 'Per_Capita_Exp_ESRD_BY2','Per_Capita_Exp_ESRD_BY3',
+                                                                  'Per_Capita_Exp_DIS_BY1', 'Per_Capita_Exp_DIS_BY2','Per_Capita_Exp_DIS_BY3',
+                                                                  'Per_Capita_Exp_AGDU_BY1', 'Per_Capita_Exp_AGDU_BY2','Per_Capita_Exp_AGDU_BY3',
+                                                                  'Per_Capita_Exp_AGND_BY1', 'Per_Capita_Exp_AGND_BY2','Per_Capita_Exp_AGND_BY3',
+                                                                  'Wt_MN_RiskScore_ESRD_BY1', 'Wt_MN_RiskScore_ESRD_BY2','Wt_MN_RiskScore_ESRD_BY3',
+                                                                  'Wt_MN_RiskScore_DIS_BY1', 'Wt_MN_RiskScore_DIS_BY2','Wt_MN_RiskScore_DIS_BY3',
+                                                                  'Wt_MN_RiskScore_AGDU_BY1', 'Wt_MN_RiskScore_AGDU_BY2','Wt_MN_RiskScore_AGDU_BY3',
+                                                                  'Wt_MN_RiskScore_AGND_BY1', 'Wt_MN_RiskScore_AGND_BY2','Wt_MN_RiskScore_AGND_BY3',
+                                                                  'BY1_RegExpend_ESRD', 'BY2_RegExpend_ESRD','BY3_RegExpend_ESRD',
+                                                                  'BY1_RegExpend_DIS', 'BY2_RegExpend_DIS','BY3_RegExpend_DIS',
+                                                                  'BY1_RegExpend_AGDU', 'BY2_RegExpend_AGDU','BY3_RegExpend_AGDU',
+                                                                  'BY1_RegExpend_AGND', 'BY2_RegExpend_AGND','BY3_RegExpend_AGND',
+                                                                  'BY1_Reg_Market_Share_ESRD', 'BY2_Reg_Market_Share_ESRD','BY3_Reg_Market_Share_ESRD',
+                                                                  'BY1_Reg_Market_Share_DIS', 'BY2_Reg_Market_Share_DIS','BY3_Reg_Market_Share_DIS',
+                                                                  'BY1_Reg_Market_Share_AGDU', 'BY2_Reg_Market_Share_AGDU','BY3_Reg_Market_Share_AGDU',
+                                                                  'BY1_Reg_Market_Share_AGND', 'BY2_Reg_Market_Share_AGND','BY3_Reg_Market_Share_AGND',
+                                                                  'ESRD_PROP_BY1', 'ESRD_PROP_BY2', 'ESRD_PROP_BY3',
+                                                                  'DIS_PROP_BY1', 'DIS_PROP_BY2', 'DIS_PROP_BY3',
+                                                                  'AGDU_PROP_BY1', 'AGDU_PROP_BY2', 'AGDU_PROP_BY3',
+                                                                  'AGND_PROP_BY1', 'AGND_PROP_BY2', 'AGND_PROP_BY3',
+                                                                  'file')
+
+
+Attila_567 = read_csv("Z:\\finance\\report validation\\historical benchmarks\\PY21 Adjusted HB G6\\Benchmark Calculation Validation\\JRW\\TI00.MSSP.GX9V.B3B57G6.ACO567.CSV") %>% filter(ACOID %in% D$ACO_ID) %>% mutate(regionally_adjsted_applicable = ifelse(Reg_Adj_HB == ".", HISTORICAL_BENCHMARK, Reg_Adj_HB),                                                                                                                                             regional_adjustment = ifelse(Reg_Adj_HB == ".",0,1)) %>%  mutate(file = "567")
+names(Attila_567) = gsub("CY15", "BY1", names(Attila_567))
+names(Attila_567) = gsub("CY16", "BY2", names(Attila_567))
+names(Attila_567) = gsub("CY17", "BY3", names(Attila_567))
+
+
+names(Attila_567) = gsub("_15", "_BY1", names(Attila_567))
+names(Attila_567) = gsub("_16", "_BY2", names(Attila_567))
+names(Attila_567) = gsub("_17", "_BY3", names(Attila_567))
+
+
+Attila_567 = Attila_567[,variable_list_Attila]
+
+
+
+sum(is.na(Attila_567$BY1_RegExpend_AGDU))
+Attila_678 = read_csv("Z:\\finance\\report validation\\historical benchmarks\\PY21 Adjusted HB G6\\Benchmark Calculation Validation\\JRW\\TI00.MSSP.GX9V.B3B68G6.ACO678.CSV")%>% filter(ACOID %in% E$ACO_ID) %>% mutate(regionally_adjsted_applicable = ifelse(Reg_Adj_HB == ".", HISTORICAL_BENCHMARK, Reg_Adj_HB),                                                                                                                                             regional_adjustment = ifelse(Reg_Adj_HB == ".",0,1)) %>%  mutate(file = "678")
+names(Attila_678) = gsub("CY16", "BY1", names(Attila_678))
+names(Attila_678) = gsub("CY17", "BY2", names(Attila_678))
+names(Attila_678) = gsub("CY18", "BY3", names(Attila_678))
+
+names(Attila_678) = gsub("_16", "_BY1", names(Attila_678))
+names(Attila_678) = gsub("_17", "_BY2", names(Attila_678))
+names(Attila_678) = gsub("_18", "_BY3", names(Attila_678))
+
+
+Attila_678
+
+Attila_678 = Attila_678[,variable_list_Attila]
+
+
+
+Attila_789 = read_csv("Z:\\finance\\report validation\\historical benchmarks\\PY21 Adjusted HB G6\\Benchmark Calculation Validation\\JRW\\TI00.MSSP.GX9V.B3B79G6.ACO789.CSV")%>% filter(ACOID %in% F_$ACO_ID) %>% mutate(regionally_adjsted_applicable = ifelse(Reg_Adj_HB == ".", HISTORICAL_BENCHMARK, Reg_Adj_HB),                                                                                                                                             regional_adjustment = ifelse(Reg_Adj_HB == ".",0,1)) %>%  mutate(file = "789")
+
+names(Attila_789) = gsub("CY17", "BY1", names(Attila_789))
+names(Attila_789) = gsub("CY18", "BY2", names(Attila_789))
+names(Attila_789) = gsub("CY19", "BY3", names(Attila_789))
+
+names(Attila_789) = gsub("_17", "_BY1", names(Attila_789))
+names(Attila_789) = gsub("_18", "_BY2", names(Attila_789))
+names(Attila_789) = gsub("_19", "_BY3", names(Attila_789))
+
+Attila_789 = Attila_789[,variable_list_Attila]
+
+
+
+Attila = bind_rows(Attila_567, Attila_678, Attila_789)
+names(Attila)
+
+Attila_missing = as.data.frame(lapply(Attila, function(x) sum(is.na(x))))
+
+Attila[,2:ncol(Attila)] = sapply(Attila[,2:ncol(Attila)], as.numeric)
+
+
+
+```
+
+```{r Table 4}
+Compare_benchmark = inner_join(Attila, Previous_Benchmark) %>% inner_join(Parlist_lookup)
+
+Compare_benchmark$regionally_adjsted_applicable = as.numeric(Compare_benchmark$regionally_adjsted_applicable)
+Compare_benchmark$prev_reg_bnch = as.numeric(Compare_benchmark$prev_reg_bnch)
+
+
+Compare_benchmark_summ = Compare_benchmark%>% mutate(benchmark_difference = (regionally_adjsted_applicable - prev_reg_bnch) / prev_reg_bnch )  %>% pivot_longer(cols = c(regionally_adjsted_applicable, prev_reg_bnch, benchmark_difference), names_to = "variable")
+Compare_benchmark_summ$variable = factor(Compare_benchmark_summ$variable,levels = c("regionally_adjsted_applicable", "prev_reg_bnch", "benchmark_difference"))
+
+Compare_benchmark_summ %>% group_by(variable) %>%
+  summarise(coun = n(),
+            quants = list(quantile(value, probs = c(.05, .1, .25, .5, .75, .90,.95))), 
+            mean(value),
+            sd(value),
+            min(value),
+            max(value),
+            upper_bound = mean(value) + 3*sd(value),
+            lower_bound = mean(value) - 3*sd(value)) %>% 
+  unnest_wider(quants)  %>% 
+  pivot_longer(cols = -variable, names_to = "summary variable") %>% 
+  pivot_wider(id_cols = c(`summary variable`,value), names_from = variable) %>% write_csv("Z:\\finance\\report validation\\historical benchmarks\\PY21 Adjusted HB G6\\Validation Memo\\Table_4.csv")
+
+
+Compare_benchmark_summ %>% filter(Parlist_Or_Assignment == 1) %>% 
+  group_by(variable) %>%
+  summarise(coun = n(),
+            quants = list(quantile(value, probs = c(.05, .1, .25, .5, .75, .90,.95))), 
+            mean(value),
+            sd(value),
+            min(value),
+            max(value),
+            upper_bound = mean(value) + 3*sd(value),
+            lower_bound = mean(value) - 3*sd(value)) %>% 
+  unnest_wider(quants)  %>% 
+  pivot_longer(cols = -variable, names_to = "summary variable") %>% 
+  pivot_wider(id_cols = c(`summary variable`,value), names_from = variable) %>% write_csv("Z:\\finance\\report validation\\historical benchmarks\\PY21 Adjusted HB G6\\Validation Memo\\Table_4_any_change.csv")
+
+Compare_benchmark_summ %>% filter(No_Change == 1) %>% 
+  group_by(variable) %>%
+  summarise(coun = n(),
+            quants = list(quantile(value, probs = c(.05, .1, .25, .5, .75, .90,.95))), 
+            mean(value),
+            sd(value),
+            min(value),
+            max(value),
+            upper_bound = mean(value) + 3*sd(value),
+            lower_bound = mean(value) - 3*sd(value)) %>% 
+  unnest_wider(quants)  %>% 
+  pivot_longer(cols = -variable, names_to = "summary variable") %>% 
+  pivot_wider(id_cols = c(`summary variable`,value), names_from = variable) %>% write_csv("Z:\\finance\\report validation\\historical benchmarks\\PY21 Adjusted HB G6\\Validation Memo\\Table_4_no_change.csv")
+
+
+
+
+```
+
+```{r Figure 3 and 4}
+library(scales)
+ggplot(Attila, aes(x = as.numeric(regionally_adjsted_applicable) / 1000)) + geom_histogram(fill = "skyblue4") + xlab("PY 2021 Adjusted Historical Benchmark") + scale_x_continuous(labels = scales::unit_format(prefix = "$", unit = "K")) + ylab("")+
+  theme(text=element_text(size=16,  family="Calibri")) + ggtitle("Distribution of Current Benchmark") + ylab("Number of ACOs")
+
+ggplot(Previous_Benchmark, aes(x = as.numeric(prev_reg_bnch) / 1000)) + geom_histogram(fill = "skyblue4") + xlab("PY 2021 Adjusted Historical Benchmark") + scale_x_continuous(labels = scales::unit_format(prefix = "$", unit = "K")) + ylab("") + ggtitle("Distribution of Prior Benchmark") +
+  theme(text=element_text(size=16,  family="Calibri"))+ ylab("Number of ACOs")
+
+
+```
+
+```{r Table 5 and scatterplot}
+Compare_benchmark = Compare_benchmark %>% mutate(benchmark_difference = (regionally_adjsted_applicable - prev_reg_bnch) / prev_reg_bnch ,
+                                                 benchmark_outlier = abs(regionally_adjsted_applicable - mean(regionally_adjsted_applicable)) > 3* sd(regionally_adjsted_applicable),
+                                                 difference_outlier = abs(benchmark_difference - mean(benchmark_difference)) > 3* sd(benchmark_difference),
+                                                 PYs_diff = (Person_Years_TOTAL_BY3 - prior_BY3_PYs)/ prior_BY3_PYs )
+
+
+ggplot(Compare_benchmark,aes(x = as.numeric(prior_BY3_PYs), y = benchmark_difference)) + geom_point(color = "skyblue4") + xlab("Prior Batch BY3 Person Years") + ylab(" Percent Difference in Historical Benchmark") + scale_x_continuous(labels = scales::comma) + ggtitle("Prior Batch BY3 Person Years versus Percent Difference (Between Current and Prior Batch) in \nHistorical Benchmarks") +  theme(text=element_text(size=12,  family="Calibri"), plot.title =element_text(size=12,  family="Calibri")) + scale_y_continuous(labels = scales::percent)
+
+sum(Compare_benchmark$benchmark_outlier)
+sum(Compare_benchmark$benchmark_raw_outlier)
+
+Outlier_Current = Compare_benchmark %>% filter(benchmark_outlier == TRUE) %>% select(ACOID, regionally_adjsted_applicable, prev_reg_bnch) %>% inner_join(Batch_Inventory[,c("ACO_ID", "ACO_LBN_DBA", "ACO_Start_Year", "Latest_Agreement_Start_Date", "Agreement_Period")], by=c("ACOID" = "ACO_ID")) %>% arrange(desc(regionally_adjsted_applicable))
+write_csv(Outlier_Current, "Z:\\finance\\report validation\\historical benchmarks\\PY21 Adjusted HB G6\\Validation Memo\\Table_5.csv")
+
+investigate_outlier_current = Compare_benchmark %>% filter(ACOID %in% Outlier_Current$ACOID) %>% select(ACOID, 
+                                                                  'Wt_MN_RiskScore_ESRD_BY1', 'Wt_MN_RiskScore_ESRD_BY2','Wt_MN_RiskScore_ESRD_BY3',
+                                                                  'Wt_MN_RiskScore_DIS_BY1', 'Wt_MN_RiskScore_DIS_BY2','Wt_MN_RiskScore_DIS_BY3',
+                                                                  'Wt_MN_RiskScore_AGDU_BY1', 'Wt_MN_RiskScore_AGDU_BY2','Wt_MN_RiskScore_AGDU_BY3',
+                                                                  'Wt_MN_RiskScore_AGND_BY1', 'Wt_MN_RiskScore_AGND_BY2','Wt_MN_RiskScore_AGND_BY3')
+
+
+```
+
+
+
+```{r Table 6}
+
+
+Outlier_diff = Compare_benchmark %>% filter(difference_outlier == TRUE) %>% select(ACOID, benchmark_difference, Any_Change, Assignment_Type_Change,PYs_diff,regionally_adjsted_applicable ,prev_reg_bnch) %>% inner_join(Batch_Inventory[,c("ACO_ID", "ACO_LBN_DBA", "ACO_Start_Year", "Latest_Agreement_Start_Date", "Agreement_Period")], by=c("ACOID" = "ACO_ID")) %>% arrange(desc(benchmark_difference))
+write_csv(Outlier_diff, "Z:\\finance\\report validation\\historical benchmarks\\PY21 Adjusted HB G6\\Validation Memo\\Table_6.csv")
+
+investigate_outlier_compare = Compare_benchmark %>% filter(ACOID %in% Outlier_diff$ACOID) %>% select(ACOID, Parlist_Or_Assignment, Parlist_only,Parlist_and_assignment_change,
+                                                                  'Wt_MN_RiskScore_ESRD_BY1', 'Wt_MN_RiskScore_ESRD_BY2','Wt_MN_RiskScore_ESRD_BY3',
+                                                                  'Wt_MN_RiskScore_DIS_BY1', 'Wt_MN_RiskScore_DIS_BY2','Wt_MN_RiskScore_DIS_BY3',
+                                                                  'Wt_MN_RiskScore_AGDU_BY1', 'Wt_MN_RiskScore_AGDU_BY2','Wt_MN_RiskScore_AGDU_BY3',
+                                                                  'Wt_MN_RiskScore_AGND_BY1', 'Wt_MN_RiskScore_AGND_BY2','Wt_MN_RiskScore_AGND_BY3')
+
+test = Compare_benchmark %>% filter(ACOID == "A4777")
+test$prior_BY3_PYs
+test$Person_Years_TOTAL_BY3
+```
+
+
+
+```{r Table 7}
+Benchmark_breakdown_func = function(variable) {
+Compare_benchmark %>% filter(.data[[variable]] == TRUE) %>% 
+  summarise(num_ACOs = n(),
+            Mean_perc_diff_pys = paste0(round(mean(PYs_diff)* 100,2), "%"),
+            range_pys_diff = paste0(round(min(PYs_diff)* 100,2), "%", " to ", round(max(PYs_diff)* 100,2), "%"),
+            mean_abs_val_diff = paste0(round(mean(abs(benchmark_difference))* 100,2), "%"))
+}
+
+
+Table_7 = names(Compare_benchmark)[77:89] %>% map_df(~Benchmark_breakdown_func(.x))
+
+
+overall = Compare_benchmark  %>% 
+  summarise(num_ACOs = n(),
+            Mean_perc_diff_pys = paste0(round(mean(PYs_diff)* 100,2), "%"),
+            range_pys_diff = paste0(round(min(PYs_diff)* 100,2), "%", " to ", round(max(PYs_diff)* 100,2), "%"),
+            mean_abs_val_diff = paste0(round(mean(abs(benchmark_difference))* 100,2), "%"))
+Table_7 = bind_rows(overall, Table_7)
+
+rownames(Table_7) = c("Overall",names(Compare_benchmark)[77:89])
+write.csv(Table_7, "Z:\\finance\\report validation\\historical benchmarks\\PY21 Adjusted HB G6\\Validation Memo\\Table_7.csv")
+
+
+```
+
+
+
+
+```{r Appendix b}
+
+summary_funs = list(
+  N = ~length(.x),
+  min = ~min(.x, na.rm = TRUE),
+  mean = ~mean(.x, na.rm = TRUE),
+  median = ~median(.x, na.rm = TRUE),
+  max = ~max(.x, na.rm = TRUE)
+)
+
+
+summary_function = function(start,stop){
+  Attila %>% pivot_longer(cols = {{start}}:{{stop}}) %>% 
+  group_by(file,name) %>% 
+  summarise(across(value, summary_funs, .names = "{.fn}"))
+  
+}
+
+summary_function(Per_Capita_Exp_ESRD_BY1, Per_Capita_Exp_AGND_BY3) %>% pivot_longer(cols = c(N:max), names_to = "variable") %>% pivot_wider(id_cols = c(file,variable), names_from = name) %>% write_csv("Z:\\finance\\report validation\\historical benchmarks\\PY21 Adjusted HB G6\\Validation Memo\\Appendix_B_1.csv")
+
+summary_function(Wt_MN_RiskScore_ESRD_BY1, Wt_MN_RiskScore_AGND_BY3)%>% pivot_longer(cols = c(N:max), names_to = "variable") %>% pivot_wider(id_cols = c(file,variable), names_from = name) %>% write_csv("Z:\\finance\\report validation\\historical benchmarks\\PY21 Adjusted HB G6\\Validation Memo\\Appendix_B_2.csv")
+
+summary_function(BY1_RegExpend_ESRD, BY3_RegExpend_AGND)%>% pivot_longer(cols = c(N:max), names_to = "variable") %>% pivot_wider(id_cols = c(file,variable), names_from = name) %>% write_csv("Z:\\finance\\report validation\\historical benchmarks\\PY21 Adjusted HB G6\\Validation Memo\\Appendix_B_3.csv")
+
+summary_function(BY1_Reg_Market_Share_ESRD, BY3_Reg_Market_Share_AGND)%>% pivot_longer(cols = c(N:max), names_to = "variable") %>% pivot_wider(id_cols = c(file,variable), names_from = name) %>% write_csv("Z:\\finance\\report validation\\historical benchmarks\\PY21 Adjusted HB G6\\Validation Memo\\Appendix_B_4.csv")
+
+summary_function(ESRD_PROP_BY1, AGND_PROP_BY3)%>% pivot_longer(cols = c(N:max), names_to = "variable") %>% pivot_wider(id_cols = c(file,variable), names_from = name) %>% write_csv("Z:\\finance\\report validation\\historical benchmarks\\PY21 Adjusted HB G6\\Validation Memo\\Appendix_B_5.csv")
+
+
+```
+
+
+```{r Section 9}
+Compare_benchmark %>% filter(regional_adjustment == 1) %>% 
+  mutate(regional_adjustment = Reg_Adj_HB - HISTORICAL_BENCHMARK) %>% 
+  summarize(n(),
+    mean(regional_adjustment),
+            sum(regional_adjustment > 0),
+            mean(regional_adjustment[regional_adjustment > 0]),
+            sum(regional_adjustment > 0) / n(),
+            sum(regional_adjustment <= 0),
+            mean(regional_adjustment[regional_adjustment <= 0],
+            sum(regional_adjustment <= 0) / n())
+            )
+
+sum(Compare_benchmark$regional_adjustment)
+Compare_benchmark %>% filter(regional_adjustment == 1) %>%
+  mutate(regional_adjustment = Reg_Adj_HB - HISTORICAL_BENCHMARK) %>%  filter(regional_adjustment %in% c(max(regional_adjustment),min(regional_adjustment)) ) %>% 
+  inner_join(Batch_Inventory[,c("ACO_ID", "ACO_LBN_DBA")], by=c("ACOID" = "ACO_ID")) %>% select(regional_adjustment, ACOID, ACO_LBN_DBA)
+    
+```
+
+
+```{r Misc Calcs}
+names(Compare_benchmark)
+mean(Compare_benchmark$benchmark_difference)
+median(Compare_benchmark$benchmark_difference)
+mean(Compare_benchmark$regionally_adjsted_applicable)
+median(Compare_benchmark$regionally_adjsted_applicable)
+
+mean(Compare_benchmark$regional_adjustment)
+
+A3694 = Compare_benchmark %>% filter(ACOID == "A3694")
+
+Batch_Inventory %>% filter(ACO_ID %in%  Attila$ACOID) %>%  group_by(Benchmark_Methodology) %>% count()
+Batch_Inventory %>% filter(ACO_ID %in%  Attila$ACOID) %>%  group_by(Benchmark_Year_Group) %>% count()
+Batch_Inventory %>% filter(ACO_ID %in%  Attila$ACOID) %>% mutate(starter = ifelse(Agreement_Period == 1,1,0)) %>%   group_by(Latest_Agreement_Start_Date, starter, Assignment_Type) %>% count()
+Batch_Inventory %>% filter(ACO_ID %in%  Attila$ACOID) %>% mutate(starter = ifelse(Agreement_Period == 1,1,0)) %>%   group_by(Latest_Agreement_Start_Date, starter, Assignment_Type) %>% count()
+
+```
+

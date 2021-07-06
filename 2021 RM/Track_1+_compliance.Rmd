@@ -1,0 +1,72 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+rm(list = ls())
+library(dplyr)
+library(readxl)
+library(tidyr)
+library(stringr)
+library(readr)
+library(lubridate)
+```
+
+
+
+
+```{r}
+
+
+POS = read_csv("C:\\Users\\lhorvath\\Downloads\\Provider_of_Services_File_-_OTHER_-_September_2020.csv") %>% select(PRVDR_NUM, BED_CNT, PRVDR_CTGRY_CD )
+POS_19 = read_csv("C:\\Users\\lhorvath\\Downloads\\Provider_of_Services_File_-_OTHER_-_December_2019.csv") %>% select(PRVDR_NUM, BED_CNT)
+
+
+Track_1_plus_status = read_csv("Z:\\finance\\participant revenue and expenditures\\2021 Cycle\\Inputs\\Final_High_Low\\Track_1_plus_status_final.csv") %>% filter(TRACK_1_PLUS_CURRENT_COMPOSITION == "Revenue")
+
+POR = read_excel("Z:\\participant management\\prescreening\\2021 Prescreening\\Batch G5\\Participation Options Report\\Participation_Options_PY2021_Full_Assignment_20201201.xlsx", sheet=1)%>% 
+  mutate(`ACO Participant TIN` = str_pad(`ACO Participant TIN`, 9, side = c("left"), pad = "0")) %>% filter(`ACO ID` %in% Track_1_plus_status$ACO.ID) %>% select(`ACO ID`, `Benchmark- or Revenue-Based`,
+                                                                                                                                                                 `Forecast Repayment Mechanism Amount`, `Existing Repayment Mechanism Amount`) %>% 
+  group_by(`ACO ID`) %>% 
+  summarize(`Benchmark-Based RM` =  `Forecast Repayment Mechanism Amount`[1],
+            `Revenue-Based RM` = `Forecast Repayment Mechanism Amount`[2],
+            `Existing RM` = `Existing Repayment Mechanism Amount`[1])
+
+
+#ACO/TIN/CCN crosswalk
+qaAcoTinCcn <- as_tibble(haven::read_sas("Y:\\data\\jsciandra\\Prescreening\\2021\\G5\\batch_g5_ccn_20201125.sas7bdat")) %>%
+  filter(Use_Record == 1) %>%
+  select(ACO = ACO_ID, TIN, CCN) %>%
+  mutate(ACO = as.character(ACO),
+         TIN = as.character(TIN),
+         CCN = as.character(CCN),
+         TIN = str_pad(TIN, 9, side = c("left"), pad = "0"),
+         CCN = str_pad(CCN, 6, side = c("left"), pad = "0")) %>% 
+  #this is exerimental 
+  distinct(ACO, TIN, CCN)
+
+
+Batch_inventory_TIN = read_excel("Z:\\participant management\\TIN-NPI database\\Batch Inventory\\2021\\BatchInventory_PY_2021.xlsx", sheet = "TIN", col_types = "text") %>% select(ACO_ID, TIN, TIN_LBN)
+Batch_inventory_CCN = read_excel("Z:\\participant management\\TIN-NPI database\\Batch Inventory\\2021\\BatchInventory_PY_2021.xlsx", sheet = "CCN", col_types = "text") %>% select(ACO_ID, CCN, CCN_LBN)
+
+
+
+```
+
+
+```{r}
+
+Compliance_file = POR %>% left_join(qaAcoTinCcn, by = c("ACO ID" = "ACO")) %>% filter(!is.na(TIN)) %>% left_join(Batch_inventory_TIN, by = c("ACO ID" = "ACO_ID", "TIN")) %>% left_join(Batch_inventory_CCN, by = c("ACO ID" = "ACO_ID", "CCN")) %>% left_join(POS, by = c("CCN" = "PRVDR_NUM")) 
+
+Compliance_file %>% group_by(PRVDR_CTGRY_CD) %>%  mutate(has_bed_size = !is.na(BED_CNT)) %>% summarize(has_bed_size = sum(has_bed_size))
+Compliance_file = Compliance_file %>% mutate(CCN_type = ifelse(PRVDR_CTGRY_CD == "01", "Hospital",
+                                             ifelse(PRVDR_CTGRY_CD == "12", "RHC",
+                                                    ifelse(PRVDR_CTGRY_CD == "05", "Home Health Agency",
+                                                           ifelse(PRVDR_CTGRY_CD == "21", "FQHC",
+                                                                  ifelse(PRVDR_CTGRY_CD == "16", "Hospice","Unknown"))))))
+
+
+openxlsx::write.xlsx(Compliance_file, "Z:\\finance\\participant revenue and expenditures\\2021 Cycle\\Post Cycle Analysis\\Track_1+_Revenue.xlsx")
+```
+
